@@ -1,0 +1,6 @@
+{
+  "name": "Blue Fox - Khaja Khata",
+  "description": "Daily food & snack credit ledger with multi-item entry, fixed coupon QR shopkeeper view, Nepali date filters, purchase returns, payments out, and downloadable statements.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
