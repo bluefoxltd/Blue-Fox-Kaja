@@ -68,8 +68,9 @@ export const EditCouponModal: React.FC<EditCouponModalProps> = ({
       ...formData,
       holderName: formData.holderName.trim(),
       holderPhone: formData.holderPhone.trim(),
-      shopName: formData.shopName.trim() || 'Shree Krishna Khaja Ghar & Canteen',
-      shopAddress: formData.shopAddress.trim(),
+      shopName: formData.shopName.trim() || 'Darjeeling momo',
+      shopAddress: formData.shopAddress.trim() || 'Itahari-6, Sky Plaza',
+      shopPhone: (formData.shopPhone || '').trim() || '9802755605',
       couponCode: formData.couponCode.trim().toUpperCase(),
       creditLimit: Number(formData.creditLimit) || 15000,
       fixedQrPayload: `${origin}/?view=shopkeeper&coupon=${encodeURIComponent(formData.couponCode.trim().toUpperCase())}`,
@@ -199,7 +200,7 @@ export const EditCouponModal: React.FC<EditCouponModalProps> = ({
             </div>
 
             {/* Shop / Canteen Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
                   <Store className="w-3.5 h-3.5 text-slate-400" />
@@ -209,7 +210,7 @@ export const EditCouponModal: React.FC<EditCouponModalProps> = ({
                   type="text"
                   value={formData.shopName}
                   onChange={(e) => handleChange('shopName', e.target.value)}
-                  placeholder="e.g. Shree Krishna Khaja Ghar & Canteen"
+                  placeholder="e.g. Darjeeling momo"
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   id="input-shop-name"
                 />
@@ -217,15 +218,30 @@ export const EditCouponModal: React.FC<EditCouponModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  <span>Shop Address / Location:</span>
+                  <span>Shop Address:</span>
                 </label>
                 <input
                   type="text"
                   value={formData.shopAddress}
                   onChange={(e) => handleChange('shopAddress', e.target.value)}
-                  placeholder="e.g. Putalisadak Chowk, Kathmandu"
+                  placeholder="e.g. Itahari-6, Sky Plaza"
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600"
                   id="input-shop-address"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Shop Phone:</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.shopPhone || ''}
+                  onChange={(e) => handleChange('shopPhone', e.target.value)}
+                  placeholder="e.g. 9802755605"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                  id="input-shop-phone"
                 />
               </div>
             </div>

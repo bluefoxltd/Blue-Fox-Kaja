@@ -5,15 +5,16 @@ import { LedgerTransaction, CouponProfile, LedgerSummary, FoodOrderItem } from '
 import { adToBs, formatBsDateString, formatBsDisplay } from './nepaliDate';
 
 const STORAGE_KEY_LEDGER = 'bluefox_khaja_khata_ledger_v2';
-const STORAGE_KEY_COUPON = 'bluefox_khaja_khata_coupon_v1';
+const STORAGE_KEY_COUPON = 'bluefox_khaja_khata_coupon_v3';
 const DB_CLEARED_VERSION_KEY = 'bluefox_db_cleared_confirmed_v2';
 
 export const DEFAULT_COUPON: CouponProfile = {
   couponCode: 'BF-FOX-7821',
   holderName: 'Bipin Chhetri',
   holderPhone: '+977 9801234567',
-  shopName: 'Shree Krishna Khaja Ghar & Canteen',
-  shopAddress: 'Putalisadak Chowk, Kathmandu',
+  shopName: 'Darjeeling momo',
+  shopAddress: 'Itahari-6, Sky Plaza',
+  shopPhone: '9802755605',
   issueDateBS: '2083-01-01',
   validUntilBS: '2083-12-30',
   creditLimit: 15000,
@@ -260,18 +261,46 @@ export function resetToSampleData(): LedgerTransaction[] {
 
 export function loadCouponProfile(): CouponProfile {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_COUPON);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_COUPON) : null;
+    
     if (!raw) {
-      // Dynamic link based on current origin if available
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const defaultWithOrigin = {
+      // Check if previous version had customized customer name
+      let previousHolder = DEFAULT_COUPON.holderName;
+      let previousPhone = DEFAULT_COUPON.holderPhone;
+      try {
+        const oldV1 = localStorage.getItem('bluefox_khaja_khata_coupon_v1');
+        if (oldV1) {
+          const parsed = JSON.parse(oldV1);
+          if (parsed.holderName) previousHolder = parsed.holderName;
+          if (parsed.holderPhone) previousPhone = parsed.holderPhone;
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      const defaultWithOrigin: CouponProfile = {
         ...DEFAULT_COUPON,
+        holderName: previousHolder,
+        holderPhone: previousPhone,
+        shopName: 'Darjeeling momo',
+        shopAddress: 'Itahari-6, Sky Plaza',
+        shopPhone: '9802755605',
         fixedQrPayload: `${origin}/?view=shopkeeper&coupon=${DEFAULT_COUPON.couponCode}`,
       };
       saveCouponProfile(defaultWithOrigin);
       return defaultWithOrigin;
     }
-    return JSON.parse(raw);
+
+    const parsed: CouponProfile = JSON.parse(raw);
+    // If shopName is still the old placeholder, update to Darjeeling momo
+    if (parsed.shopName === 'Shree Krishna Khaja Ghar & Canteen' || !parsed.shopPhone) {
+      parsed.shopName = 'Darjeeling momo';
+      parsed.shopAddress = 'Itahari-6, Sky Plaza';
+      parsed.shopPhone = '9802755605';
+      saveCouponProfile(parsed);
+    }
+    return parsed;
   } catch (err) {
     return DEFAULT_COUPON;
   }

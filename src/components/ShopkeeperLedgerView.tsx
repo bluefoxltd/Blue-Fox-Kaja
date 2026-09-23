@@ -97,9 +97,15 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
-                {couponProfile.shopName}
+                {couponProfile.shopName || 'Darjeeling momo'}
               </h1>
               <p className="text-xs sm:text-sm text-blue-200 mt-0.5">
+                <span>{couponProfile.shopAddress || 'Itahari-6, Sky Plaza'}</span>
+                {couponProfile.shopPhone && (
+                  <span> • Phone: <strong className="text-white font-mono">{couponProfile.shopPhone}</strong></span>
+                )}
+              </p>
+              <p className="text-xs sm:text-sm text-blue-300 mt-0.5">
                 Customer: <strong className="text-white">{couponProfile.holderName}</strong> • Phone: <span className="font-mono">{couponProfile.holderPhone}</span>
               </p>
             </div>

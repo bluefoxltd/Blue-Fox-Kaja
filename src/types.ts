@@ -46,6 +46,7 @@ export interface CouponProfile {
   holderPhone: string;
   shopName: string;
   shopAddress: string;
+  shopPhone?: string;
   issueDateBS: string;
   validUntilBS: string;
   creditLimit?: number;
