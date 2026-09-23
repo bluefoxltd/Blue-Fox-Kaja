@@ -8,7 +8,6 @@ import {
   Store, 
   CheckCircle2, 
   AlertCircle,
-  HelpCircle,
   KeyRound
 } from 'lucide-react';
 import { syncManager } from '../utils/syncManager';
@@ -67,7 +66,7 @@ export const AdminPinLogin: React.FC<AdminPinLoginProps> = ({
         setTimeout(() => setPin(''), 600);
       }
     } catch (e) {
-      setErrorMsg('Verification failed. Try default PIN 1234.');
+      setErrorMsg('Verification failed. Please check your PIN.');
     } finally {
       setIsVerifying(false);
     }
@@ -198,21 +197,6 @@ export const AdminPinLogin: React.FC<AdminPinLoginProps> = ({
             title="Backspace"
           >
             <Delete className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Default PIN Quick Hint */}
-        <div className="text-center pt-2 pb-1 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={() => {
-              setPin('1234');
-              verifyPinCode('1234');
-            }}
-            className="text-[11px] text-blue-800 hover:text-blue-950 font-semibold inline-flex items-center gap-1 hover:underline"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-blue-600" />
-            <span>Default PIN: <strong>1234</strong> (Tap to Auto-fill)</span>
           </button>
         </div>
       </div>

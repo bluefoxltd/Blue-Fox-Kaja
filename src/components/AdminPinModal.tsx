@@ -43,7 +43,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
         onSuccess();
         onClose();
       } else {
-        setErrorMsg('Incorrect PIN. Default is 1234.');
+        setErrorMsg('Incorrect PIN. Please try again.');
       }
     } catch (err) {
       setErrorMsg('Verification error.');
@@ -151,10 +151,6 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
                   {isSubmitting ? 'Verifying...' : 'Unlock Admin'}
                 </button>
               </div>
-
-              <p className="text-center text-[11px] text-slate-400">
-                Default PIN: <strong>1234</strong>
-              </p>
             </form>
           ) : (
             <form onSubmit={handleChangePin} className="space-y-3">
@@ -165,7 +161,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
                   maxLength={4}
                   value={oldPin}
                   onChange={(e) => setOldPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="e.g. 1234"
+                  placeholder="Current PIN (••••)"
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-mono font-bold"
                 />
               </div>
