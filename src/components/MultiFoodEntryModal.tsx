@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Plus, 
@@ -8,7 +8,8 @@ import {
   Wallet, 
   ShieldAlert, 
   Sparkles,
-  Check
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { 
   TransactionType, 
@@ -29,9 +30,12 @@ import { POPULAR_SNACK_PRESETS } from '../utils/storage';
 interface MultiFoodEntryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  couponProfile: CouponProfile;
+  couponProfile?: CouponProfile;
   initialType?: TransactionType;
-  onSaveTransaction: (tx: LedgerTransaction) => void;
+  onSaveTransaction?: (tx: LedgerTransaction) => void;
+  onSave?: (tx: LedgerTransaction) => void;
+  shopName?: string;
+  currentCreditDue?: number;
 }
 
 export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
@@ -40,8 +44,15 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
   couponProfile,
   initialType = 'PURCHASE',
   onSaveTransaction,
+  onSave,
+  shopName: initialShopProp,
+  currentCreditDue = 0,
 }) => {
   if (!isOpen) return null;
+
+  const saveHandler = onSave || onSaveTransaction || (() => {});
+  const effectiveShopName = initialShopProp || couponProfile?.shopName || 'Darjeeling momo';
+  const effectiveCouponCode = couponProfile?.couponCode || 'BF-FOX-7821';
 
   const todayAd = new Date().toISOString().split('T')[0];
   const [selectedDateAD, setSelectedDateAD] = useState<string>(todayAd);
@@ -53,17 +64,26 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'COUPON_CREDIT' | 'CASH' | 'FONEPAY_QR' | 'ESEWA' | 'KHALTI' | 'BANK_TRANSFER'>(
     initialType === 'PAYMENT_OUT' ? 'FONEPAY_QR' : 'COUPON_CREDIT'
   );
-  const [shopName, setShopName] = useState<string>(couponProfile.shopName);
+  const [currentShopName, setCurrentShopName] = useState<string>(effectiveShopName);
   const [referenceNote, setReferenceNote] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Multi-Food items array
+  // Multi-Food items array - Starts completely EMPTY without dummy prefilled food
   const [items, setItems] = useState<FoodOrderItem[]>([
-    { id: 'item_1', name: 'Buff Steam Momo', qty: 2, unitPrice: 150, totalPrice: 300, notes: '' },
-    { id: 'item_2', name: 'Milk Tea / Dudh Chiya', qty: 2, unitPrice: 30, totalPrice: 60, notes: '' },
+    { id: 'item_1', name: '', qty: 1, unitPrice: 0, totalPrice: 0, notes: '' },
   ]);
 
-  // Payment out direct amount
-  const [paymentOutAmount, setPaymentOutAmount] = useState<number>(500);
+  // Payment out direct settlement amount - Starts EMPTY so user can manually enter
+  const [paymentOutAmount, setPaymentOutAmount] = useState<string>('');
+
+  // Reset when initialType or modal opens
+  useEffect(() => {
+    setTxType(initialType);
+    setPaymentStatus(initialType === 'PAYMENT_OUT' ? 'PAID' : 'CREDIT');
+    setPaymentMethod(initialType === 'PAYMENT_OUT' ? 'FONEPAY_QR' : 'COUPON_CREDIT');
+    setPaymentOutAmount('');
+    setErrorMessage(null);
+  }, [initialType, isOpen]);
 
   // Derive Nepali Date
   const bsObj = adToBs(new Date(selectedDateAD));
@@ -74,7 +94,7 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
   // Subtotal calculations
   const calculateTotal = () => {
     if (txType === 'PAYMENT_OUT') {
-      return paymentOutAmount || 0;
+      return Number(paymentOutAmount) || 0;
     }
     return items.reduce((acc, curr) => acc + (Number(curr.totalPrice) || 0), 0);
   };
@@ -87,26 +107,32 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
       id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       name: presetName || '',
       qty: 1,
-      unitPrice: presetPrice || 100,
-      totalPrice: presetPrice || 100,
+      unitPrice: presetPrice || 0,
+      totalPrice: presetPrice || 0,
       notes: '',
     };
     setItems((prev) => [...prev, newItem]);
+    setErrorMessage(null);
   };
 
   const handleRemoveItem = (id: string) => {
-    if (items.length <= 1) return;
+    if (items.length <= 1) {
+      // Clear instead of removing last row
+      setItems([{ id: `item_${Date.now()}`, name: '', qty: 1, unitPrice: 0, totalPrice: 0, notes: '' }]);
+      return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const handleUpdateItem = (id: string, field: keyof FoodOrderItem, value: any) => {
+    setErrorMessage(null);
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
         const updated = { ...item, [field]: value };
         if (field === 'qty' || field === 'unitPrice') {
-          const qty = field === 'qty' ? Number(value) : item.qty;
-          const price = field === 'unitPrice' ? Number(value) : item.unitPrice;
+          const qty = field === 'qty' ? (value === '' ? 0 : Number(value)) : item.qty;
+          const price = field === 'unitPrice' ? (value === '' ? 0 : Number(value)) : item.unitPrice;
           updated.totalPrice = Math.max(0, (qty || 0) * (price || 0));
         }
         return updated;
@@ -115,13 +141,16 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
   };
 
   const handleQuickAddPreset = (preset: { name: string; defaultPrice: number }) => {
+    setErrorMessage(null);
     // Check if an empty row exists
     const emptyIndex = items.findIndex((i) => !i.name.trim());
     if (emptyIndex !== -1) {
       const updated = [...items];
       updated[emptyIndex].name = preset.name;
       updated[emptyIndex].unitPrice = preset.defaultPrice;
-      updated[emptyIndex].totalPrice = updated[emptyIndex].qty * preset.defaultPrice;
+      const q = updated[emptyIndex].qty || 1;
+      updated[emptyIndex].qty = q;
+      updated[emptyIndex].totalPrice = q * preset.defaultPrice;
       setItems(updated);
     } else {
       handleAddItem(preset.name, preset.defaultPrice);
@@ -132,14 +161,15 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
     e.preventDefault();
 
     if (txType !== 'PAYMENT_OUT') {
-      const validItems = items.filter((i) => i.name.trim().length > 0 && i.qty > 0);
+      const validItems = items.filter((i) => i.name.trim().length > 0 && (i.qty || 0) > 0);
       if (validItems.length === 0) {
-        alert('Please add at least one food item with name and quantity.');
+        setErrorMessage('कृपया कम्तिमा एउटा खाजाको नाम र परिमाण प्रविष्ट गर्नुहोस्। (Please add at least one food item with name and quantity).');
         return;
       }
     } else {
-      if (!paymentOutAmount || paymentOutAmount <= 0) {
-        alert('Please specify a valid payment amount.');
+      const amt = Number(paymentOutAmount);
+      if (!amt || amt <= 0) {
+        setErrorMessage('कृपया भुक्तानी रकम प्रविष्ट गर्नुहोस्। (Please enter a valid settlement amount).');
         return;
       }
     }
@@ -155,8 +185,8 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
       dateBSFormatted: bsFormatted,
       type: txType,
       mealCategory: txType === 'PAYMENT_OUT' ? 'OTHER' : mealCategory,
-      shopName: shopName.trim() || couponProfile.shopName,
-      couponCode: couponProfile.couponCode,
+      shopName: currentShopName.trim() || effectiveShopName,
+      couponCode: effectiveCouponCode,
       items: txType === 'PAYMENT_OUT' ? [] : items.filter((i) => i.name.trim().length > 0),
       subtotal: netTotal,
       discount: 0,
@@ -164,11 +194,11 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
       paymentStatus: txType === 'PAYMENT_OUT' ? 'PAID' : paymentStatus,
       paymentMethod: txType === 'PAYMENT_OUT' ? paymentMethod : (paymentStatus === 'CREDIT' ? 'COUPON_CREDIT' : paymentMethod),
       referenceNote: referenceNote.trim() || undefined,
-      isImmutable: true, // Immutability requirement
+      isImmutable: true,
       createdAt: new Date().toISOString(),
     };
 
-    onSaveTransaction(newTx);
+    saveHandler(newTx);
     onClose();
   };
 
@@ -193,7 +223,7 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                 {txType === 'PAYMENT_OUT' && 'Payment Out to Shop (रकम भुक्तानी)'}
               </h2>
               <p className="text-[11px] text-blue-200 font-mono">
-                Coupon: {couponProfile.couponCode} • {couponProfile.holderName}
+                Coupon: {effectiveCouponCode} • {couponProfile?.holderName || 'Blue Fox'}
               </p>
             </div>
           </div>
@@ -263,6 +293,14 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
+          {/* Inline Validation Error Banner */}
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-300 rounded-xl p-3 text-xs text-red-700 flex items-center gap-2 font-medium animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* Row 1: Date (AD + BS sync) & Shop Name */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
@@ -290,9 +328,9 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
               </label>
               <input
                 type="text"
-                value={shopName}
-                onChange={(e) => setShopName(e.target.value)}
-                placeholder="e.g. Shree Krishna Khaja Ghar"
+                value={currentShopName}
+                onChange={(e) => setCurrentShopName(e.target.value)}
+                placeholder="e.g. Darjeeling momo"
                 className="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-800"
                 required
               />
@@ -378,39 +416,83 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
             </div>
           ) : (
             /* PAYMENT OUT FIELDS */
-            <div className="bg-emerald-50 p-3.5 rounded-xl border border-emerald-200 space-y-3">
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 space-y-3.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-900">
-                  Payment Out to Shopkeeper (उधारो रकम चुक्ता / तिरेको)
+                <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                  <Wallet className="w-4 h-4 text-emerald-700" />
+                  <span>Payment Out to Shopkeeper (उधारो रकम चुक्ता / तिरेको)</span>
                 </span>
-                <span className="text-[11px] bg-emerald-200 text-emerald-900 font-semibold px-2 py-0.5 rounded">
+                <span className="text-[11px] bg-emerald-200 text-emerald-950 font-bold px-2.5 py-0.5 rounded-full">
                   Decreases Credit Due
                 </span>
               </div>
+
+              {/* Live Credit Due Index Display */}
+              <div className="bg-white rounded-xl p-3 border-2 border-red-200 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">
+                    <AlertCircle className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] sm:text-[11px] text-slate-500 font-bold uppercase tracking-wider block">
+                      Total Credit Dues (तिर्न बाँकी कुल उधारो)
+                    </span>
+                    <span className="text-base sm:text-lg font-black text-red-600 font-mono" id="modal-payment-out-live-due">
+                      {formatNepaliRupees(currentCreditDue || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {(currentCreditDue || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentOutAmount(String(currentCreditDue));
+                      setErrorMessage(null);
+                    }}
+                    className="px-3 py-1.5 text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                    id="btn-fill-full-due"
+                    title="Click to fill exact outstanding credit due amount"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Pay Full Due ({formatNepaliRupees(currentCreditDue || 0)})</span>
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Settlement Amount (रू. Amount Paid)
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={paymentOutAmount}
-                    onChange={(e) => setPaymentOutAmount(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 text-sm font-bold rounded-lg border border-emerald-300 bg-white focus:ring-2 focus:ring-emerald-600"
-                    placeholder="e.g. 500"
-                    required
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">रू.</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={paymentOutAmount}
+                      onChange={(e) => {
+                        setPaymentOutAmount(e.target.value);
+                        setErrorMessage(null);
+                      }}
+                      className="w-full pl-8 pr-3 py-2 text-sm font-black rounded-lg border border-emerald-300 bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none"
+                      placeholder="Enter settlement amount..."
+                      required
+                      autoFocus
+                      id="input-payment-out-settlement"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Enter any partial amount or click "Pay Full Due" above</p>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Paid Via (भुक्तानी माध्यम)
                   </label>
                   <select
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 bg-white"
+                    className="w-full px-3 py-2 text-xs font-semibold rounded-lg border border-emerald-300 bg-white focus:ring-2 focus:ring-emerald-600 focus:outline-none"
                   >
                     <option value="FONEPAY_QR">Fonepay / Bank QR</option>
                     <option value="CASH">Cash (नगद)</option>
@@ -418,6 +500,7 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                     <option value="KHALTI">Khalti</option>
                     <option value="BANK_TRANSFER">Direct Bank Transfer</option>
                   </select>
+                  <p className="text-[10px] text-slate-500 mt-1">Payment method used for Darjeeling momo</p>
                 </div>
               </div>
             </div>
@@ -467,11 +550,11 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                       <div className="col-span-5 sm:col-span-5">
                         <input
                           type="text"
-                          placeholder="e.g. Buff Momo / Chiya"
+                          placeholder="e.g. Buff Momo / Chiya (खाजाको नाम)"
                           value={item.name}
                           onChange={(e) => handleUpdateItem(item.id, 'name', e.target.value)}
-                          className="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:ring-1 focus:ring-blue-800"
-                          required
+                          className="w-full px-2 py-1.5 text-xs rounded border border-slate-300 focus:ring-2 focus:ring-blue-800"
+                          autoFocus={index === 0 && !item.name}
                         />
                       </div>
 
@@ -481,10 +564,10 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                           type="number"
                           min="1"
                           step="1"
-                          value={item.qty}
+                          value={item.qty || ''}
+                          placeholder="1"
                           onChange={(e) => handleUpdateItem(item.id, 'qty', e.target.value)}
-                          className="w-full px-1.5 py-1 text-xs text-center rounded border border-slate-300 font-semibold"
-                          required
+                          className="w-full px-1.5 py-1.5 text-xs text-center rounded border border-slate-300 font-semibold"
                         />
                       </div>
 
@@ -494,16 +577,16 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                           type="number"
                           min="0"
                           step="1"
-                          value={item.unitPrice}
+                          value={item.unitPrice === 0 ? '' : item.unitPrice}
+                          placeholder="0"
                           onChange={(e) => handleUpdateItem(item.id, 'unitPrice', e.target.value)}
-                          className="w-full px-1.5 py-1 text-xs text-right rounded border border-slate-300 font-semibold"
-                          required
+                          className="w-full px-1.5 py-1.5 text-xs text-right rounded border border-slate-300 font-semibold"
                         />
                       </div>
 
                       {/* Item Total */}
                       <div className="col-span-2 sm:col-span-2 text-right font-bold text-slate-800">
-                        Rs. {item.totalPrice}
+                        Rs. {item.totalPrice || 0}
                       </div>
 
                       {/* Delete */}
@@ -511,9 +594,8 @@ export const MultiFoodEntryModal: React.FC<MultiFoodEntryModalProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(item.id)}
-                          disabled={items.length <= 1}
-                          className="text-slate-400 hover:text-red-600 disabled:opacity-30 p-1"
-                          title="Remove item"
+                          className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                          title="Clear or remove row"
                         >
                           <Trash2 className="w-3.5 h-3.5 mx-auto" />
                         </button>

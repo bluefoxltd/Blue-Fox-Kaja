@@ -11,9 +11,11 @@ import {
   Pencil,
   User,
   Trash2,
-  FileArchive
+  FileArchive,
+  Lock,
+  KeyRound
 } from 'lucide-react';
-import { CouponProfile, LedgerTransaction } from '../types';
+import { CouponProfile, LedgerTransaction, SyncStatus } from '../types';
 import { exportLedgerToCsv, exportLedgerToJson } from '../utils/storage';
 
 interface NavbarProps {
@@ -25,6 +27,9 @@ interface NavbarProps {
   onOpenCouponModal: () => void;
   onOpenEditCouponModal: () => void;
   onOpenClearDbModal?: () => void;
+  onLockAdmin?: () => void;
+  onChangePin?: () => void;
+  syncStatus?: SyncStatus;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,6 +41,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCouponModal,
   onOpenEditCouponModal,
   onOpenClearDbModal,
+  onLockAdmin,
+  onChangePin,
+  syncStatus = 'connected',
 }) => {
   const [downloadMenuOpen, setDownloadMenuOpen] = React.useState(false);
 
@@ -184,14 +192,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
 
                   <a
-                    href="/bluefox-khaja-khata-source.zip"
-                    download="bluefox-khaja-khata-source.zip"
+                    href="/api/download-zip"
+                    download="bluefox-khaja-khata-final.zip"
                     onClick={() => setDownloadMenuOpen(false)}
                     className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2.5 transition-colors text-blue-900 font-bold border-t border-slate-100"
                     id="download-source-zip-btn"
                   >
                     <FileArchive className="w-4 h-4 text-blue-700" />
-                    <span>Download Code (.ZIP)</span>
+                    <span>Download Final Code (.ZIP)</span>
                   </a>
 
                   {onOpenClearDbModal && (
@@ -221,15 +229,39 @@ export const Navbar: React.FC<NavbarProps> = ({
               <QrCode className="w-4 h-4" />
             </button>
 
-            {/* "+ New Daily Snack Entry" Main Call to Action */}
-            <button
-              onClick={onOpenNewEntry}
-              className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all focus:ring-2 focus:ring-blue-400 focus:outline-none"
-              id="btn-new-food-entry"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>+ Daily Snack Entry</span>
-            </button>
+            {/* Live Sync Status Pill */}
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-900/60 text-emerald-300 text-[11px] font-semibold border border-emerald-500/20">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              </span>
+              <span>Live Synced</span>
+            </div>
+
+            {/* Lock / Sign Out Button for Admin */}
+            {onLockAdmin && activeView === 'dashboard' && (
+              <button
+                onClick={onLockAdmin}
+                className="px-2.5 py-1.5 rounded-lg bg-blue-900/80 hover:bg-blue-800 text-amber-300 border border-blue-700 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                title="Lock Admin Session (Require PIN)"
+                id="lock-admin-navbar-btn"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Lock Admin</span>
+              </button>
+            )}
+
+            {/* "+ New Daily Snack Entry" Main Call to Action - Only visible to Admin */}
+            {activeView !== 'shopkeeper' && (
+              <button
+                onClick={onOpenNewEntry}
+                className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 sm:gap-2 shadow-sm transition-all focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                id="btn-new-food-entry"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>+ Daily Snack Entry</span>
+              </button>
+            )}
           </div>
 
         </div>

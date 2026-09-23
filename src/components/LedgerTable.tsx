@@ -19,20 +19,32 @@ import { exportLedgerToCsv } from '../utils/storage';
 
 interface LedgerTableProps {
   transactions: LedgerTransaction[];
-  couponCode: string;
+  couponCode?: string;
   isShopkeeperView?: boolean;
+  readOnly?: boolean;
   onOpenNewEntry?: () => void;
   onClearDatabase?: () => void;
+  onOpenDailyFoodEntry?: () => void;
+  onOpenPaymentOut?: () => void;
+  onOpenPurchaseReturn?: () => void;
+  onOpenClearDatabase?: () => void;
 }
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({
   transactions,
-  couponCode,
+  couponCode = 'BF-FOX-7821',
   isShopkeeperView = false,
+  readOnly = false,
   onOpenNewEntry,
   onClearDatabase,
+  onOpenDailyFoodEntry,
+  onOpenClearDatabase,
 }) => {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+
+  const isRestricted = isShopkeeperView || readOnly;
+  const triggerNewEntry = onOpenNewEntry || onOpenDailyFoodEntry;
+  const triggerClearDb = onClearDatabase || onOpenClearDatabase;
 
   const toggleRow = (id: string) => {
     setExpandedRowId((prev) => (prev === id ? null : id));
@@ -52,10 +64,10 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
           No food or payment records are currently in the database. All records have been cleared.
         </p>
-        {onOpenNewEntry && !isShopkeeperView && (
+        {triggerNewEntry && !isRestricted && (
           <div className="mt-4 flex items-center justify-center gap-3">
             <button
-              onClick={onOpenNewEntry}
+              onClick={triggerNewEntry}
               className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-950 hover:bg-blue-900 text-white flex items-center gap-1.5 shadow-sm transition-all"
               id="empty-state-new-entry-btn"
             >
@@ -75,7 +87,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
       <div className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/70">
         <div>
           <h3 className="font-extrabold text-sm sm:text-base text-blue-950 flex items-center gap-2">
-            <span>{isShopkeeperView ? 'Shopkeeper Verified Ledger' : 'Daily Food Credit & Payment Ledger (खाता विवरण)'}</span>
+            <span>{isRestricted ? 'Darjeeling momo - Accountability Ledger' : 'Daily Food Credit & Payment Ledger (खाता विवरण)'}</span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold font-mono">
               {transactions.length} Records
             </span>
@@ -86,9 +98,9 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto">
-          {onClearDatabase && !isShopkeeperView && (
+          {triggerClearDb && !isRestricted && (
             <button
-              onClick={onClearDatabase}
+              onClick={triggerClearDb}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center gap-1.5 transition-colors"
               title="Clear all records from database"
               id="clear-db-table-btn"

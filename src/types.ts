@@ -69,3 +69,5 @@ export interface LedgerSummary {
   totalReturns: number;
   netPayableBalance: number;
 }
+
+export type SyncStatus = 'connected' | 'syncing' | 'offline';

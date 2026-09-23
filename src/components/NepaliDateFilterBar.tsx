@@ -20,14 +20,19 @@ import {
 interface NepaliDateFilterBarProps {
   filters: FilterOptions;
   onFilterChange: (newFilters: FilterOptions) => void;
-  totalFilteredCount: number;
+  totalFilteredCount?: number;
+  filteredCount?: number;
+  totalCount?: number;
 }
 
 export const NepaliDateFilterBar: React.FC<NepaliDateFilterBarProps> = ({
   filters,
   onFilterChange,
   totalFilteredCount,
+  filteredCount,
+  totalCount,
 }) => {
+  const displayCount = totalFilteredCount !== undefined ? totalFilteredCount : (filteredCount ?? 0);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const currentBs = getCurrentBsDate();
 
@@ -273,7 +278,7 @@ export const NepaliDateFilterBar: React.FC<NepaliDateFilterBarProps> = ({
       <div className="mt-2.5 flex items-center justify-between text-xs text-slate-500 pt-1">
         <div className="flex items-center gap-1.5">
           <Tag className="w-3.5 h-3.5 text-slate-400" />
-          <span>Showing <strong className="text-blue-950 font-bold">{totalFilteredCount}</strong> records</span>
+          <span>Showing <strong className="text-blue-950 font-bold">{displayCount}</strong> records</span>
           {filters.dateRangePreset !== 'ALL' && (
             <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded text-[11px] font-medium">
               BS: {filters.fromBS || 'Start'} to {filters.toBS || 'Today'}

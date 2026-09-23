@@ -10,23 +10,30 @@ import {
 interface ClearDatabaseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirmClear: (resetCouponProfile: boolean) => void;
-  totalTransactionsCount: number;
+  onConfirmClear?: (resetCouponProfile: boolean) => void;
+  onConfirm?: (resetCouponProfile: boolean) => void;
+  totalTransactionsCount?: number;
+  totalRecords?: number;
 }
 
 export const ClearDatabaseModal: React.FC<ClearDatabaseModalProps> = ({
   isOpen,
   onClose,
   onConfirmClear,
+  onConfirm,
   totalTransactionsCount,
+  totalRecords,
 }) => {
   const [resetCoupon, setResetCoupon] = useState<boolean>(false);
   const [clearedNotice, setClearedNotice] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
+  const count = totalRecords !== undefined ? totalRecords : (totalTransactionsCount ?? 0);
+  const confirmHandler = onConfirm || onConfirmClear || (() => {});
+
   const handleClear = () => {
-    onConfirmClear(resetCoupon);
+    confirmHandler(resetCoupon);
     setClearedNotice(true);
     setTimeout(() => {
       setClearedNotice(false);
@@ -87,7 +94,7 @@ export const ClearDatabaseModal: React.FC<ClearDatabaseModalProps> = ({
                   Are you sure you want to clear all transactions?
                 </p>
                 <p>
-                  This will permanently delete all {totalTransactionsCount} food purchases, payments, and return records from the database and reset totals to Rs. 0.
+                  This will permanently delete all {count} food purchases, payments, and return records from the database and reset totals to Rs. 0.
                 </p>
               </div>
             </div>

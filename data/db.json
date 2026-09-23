@@ -1,0 +1,17 @@
+{
+  "transactions": [],
+  "couponProfile": {
+    "couponCode": "BF-FOX-7821",
+    "holderName": "Blue Fox",
+    "holderPhone": "+977 9802755605",
+    "shopName": "Darjeeling momo",
+    "shopAddress": "Itahari-6, Sky Plaza",
+    "shopPhone": "9802755605",
+    "issueDateBS": "2083-01-01",
+    "validUntilBS": "2083-12-30",
+    "creditLimit": 25000,
+    "fixedQrPayload": ""
+  },
+  "adminPin": "1234",
+  "lastUpdated": 1790147500000
+}

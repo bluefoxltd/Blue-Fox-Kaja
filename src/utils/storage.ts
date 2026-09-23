@@ -5,194 +5,57 @@ import { LedgerTransaction, CouponProfile, LedgerSummary, FoodOrderItem } from '
 import { adToBs, formatBsDateString, formatBsDisplay } from './nepaliDate';
 
 const STORAGE_KEY_LEDGER = 'bluefox_khaja_khata_ledger_v2';
-const STORAGE_KEY_COUPON = 'bluefox_khaja_khata_coupon_v3';
+const STORAGE_KEY_COUPON = 'bluefox_khaja_khata_coupon_v4';
+const STORAGE_KEY_ADMIN_PIN = 'bluefox_admin_pin_code_v1';
 const DB_CLEARED_VERSION_KEY = 'bluefox_db_cleared_confirmed_v2';
+
+export const DEFAULT_ADMIN_PIN = '1234';
 
 export const DEFAULT_COUPON: CouponProfile = {
   couponCode: 'BF-FOX-7821',
-  holderName: 'Bipin Chhetri',
-  holderPhone: '+977 9801234567',
+  holderName: 'Blue Fox',
+  holderPhone: '+977 9802755605',
   shopName: 'Darjeeling momo',
   shopAddress: 'Itahari-6, Sky Plaza',
   shopPhone: '9802755605',
   issueDateBS: '2083-01-01',
   validUntilBS: '2083-12-30',
-  creditLimit: 15000,
+  creditLimit: 25000,
   fixedQrPayload: 'https://ais-pre-ptlaj6yq7utfzpaev2jmqd-670520544893.asia-southeast1.run.app/?view=shopkeeper&coupon=BF-FOX-7821',
 };
 
-// Seed realistic transactions showing multi-item food purchases, return, and payment out
-export function generateSeedTransactions(): LedgerTransaction[] {
-  const today = new Date();
-  
-  const d0 = new Date(today);
-  const d1 = new Date(today);
-  d1.setDate(today.getDate() - 1);
-  const d2 = new Date(today);
-  d2.setDate(today.getDate() - 2);
-  const d3 = new Date(today);
-  d3.setDate(today.getDate() - 4);
-  const d4 = new Date(today);
-  d4.setDate(today.getDate() - 6);
-
-  const makeBs = (date: Date) => {
-    const bs = adToBs(date);
-    return {
-      bsStr: formatBsDateString(bs),
-      bsFormatted: formatBsDisplay(bs, false),
-    };
-  };
-
-  const bs0 = makeBs(d0);
-  const bs1 = makeBs(d1);
-  const bs2 = makeBs(d2);
-  const bs3 = makeBs(d3);
-  const bs4 = makeBs(d4);
-
-  return [
-    {
-      id: 'tx_001',
-      transactionNumber: 'BF-TX-1001',
-      timestamp: d4.getTime(),
-      dateAD: d4.toISOString().split('T')[0],
-      dateBS: bs4.bsStr,
-      dateBSFormatted: bs4.bsFormatted,
-      type: 'PURCHASE',
-      mealCategory: 'SNACK_KHAJA',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [
-        { id: 'itm_1', name: 'Buff Steam Momo (2 Plate)', qty: 2, unitPrice: 150, totalPrice: 300, notes: 'Spicy achar' },
-        { id: 'itm_2', name: 'Milk Tea / Dudh Chiya', qty: 3, unitPrice: 30, totalPrice: 90 },
-        { id: 'itm_3', name: 'Samosa Tarkari', qty: 2, unitPrice: 35, totalPrice: 70 },
-      ],
-      subtotal: 460,
-      discount: 0,
-      netAmount: 460,
-      paymentStatus: 'CREDIT', // Red (Credit)
-      paymentMethod: 'COUPON_CREDIT',
-      referenceNote: 'Office evening snacks with coupon verify',
-      isImmutable: true,
-      createdAt: d4.toISOString(),
-    },
-    {
-      id: 'tx_002',
-      transactionNumber: 'BF-TX-1002',
-      timestamp: d3.getTime(),
-      dateAD: d3.toISOString().split('T')[0],
-      dateBS: bs3.bsStr,
-      dateBSFormatted: bs3.bsFormatted,
-      type: 'PURCHASE',
-      mealCategory: 'LUNCH',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [
-        { id: 'itm_4', name: 'Chicken Chowmein (Special)', qty: 2, unitPrice: 180, totalPrice: 360 },
-        { id: 'itm_5', name: 'Mountain Dew (Can)', qty: 2, unitPrice: 70, totalPrice: 140 },
-        { id: 'itm_6', name: 'Alu Dum Puri Set', qty: 1, unitPrice: 100, totalPrice: 100 },
-      ],
-      subtotal: 600,
-      discount: 0,
-      netAmount: 600,
-      paymentStatus: 'CREDIT', // Red (Credit)
-      paymentMethod: 'COUPON_CREDIT',
-      referenceNote: 'Afternoon lunch with team',
-      isImmutable: true,
-      createdAt: d3.toISOString(),
-    },
-    {
-      id: 'tx_003',
-      transactionNumber: 'BF-TX-1003',
-      timestamp: d2.getTime(),
-      dateAD: d2.toISOString().split('T')[0],
-      dateBS: bs2.bsStr,
-      dateBSFormatted: bs2.bsFormatted,
-      type: 'PURCHASE_RETURN', // Food Purchase Return
-      mealCategory: 'OTHER',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [
-        { id: 'itm_7', name: 'Mountain Dew (Can - Returned unchilled)', qty: 2, unitPrice: 70, totalPrice: 140, notes: 'Returned to shopkeeper dai' },
-      ],
-      subtotal: 140,
-      discount: 0,
-      netAmount: 140,
-      paymentStatus: 'CREDIT', // Reverses credit
-      paymentMethod: 'COUPON_CREDIT',
-      referenceNote: 'Returned warm cans; shopkeeper adjusted on credit balance',
-      isImmutable: true,
-      createdAt: d2.toISOString(),
-    },
-    {
-      id: 'tx_004',
-      transactionNumber: 'BF-TX-1004',
-      timestamp: d1.getTime(),
-      dateAD: d1.toISOString().split('T')[0],
-      dateBS: bs1.bsStr,
-      dateBSFormatted: bs1.bsFormatted,
-      type: 'PURCHASE',
-      mealCategory: 'BREAKFAST',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [
-        { id: 'itm_8', name: 'Aloo Paratha with Curd', qty: 2, unitPrice: 110, totalPrice: 220 },
-        { id: 'itm_9', name: 'Black Tea / Kalo Chiya', qty: 2, unitPrice: 20, totalPrice: 40 },
-      ],
-      subtotal: 260,
-      discount: 0,
-      netAmount: 260,
-      paymentStatus: 'PAID', // Navy Blue (Paid on spot)
-      paymentMethod: 'CASH',
-      referenceNote: 'Paid direct cash at counter',
-      isImmutable: true,
-      createdAt: d1.toISOString(),
-    },
-    {
-      id: 'tx_005',
-      transactionNumber: 'BF-TX-1005',
-      timestamp: d0.getTime() - 1000 * 60 * 60 * 3,
-      dateAD: d0.toISOString().split('T')[0],
-      dateBS: bs0.bsStr,
-      dateBSFormatted: bs0.bsFormatted,
-      type: 'PAYMENT_OUT', // Payment Out: user settles outstanding credit
-      mealCategory: 'OTHER',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [],
-      subtotal: 500,
-      discount: 0,
-      netAmount: 500,
-      paymentStatus: 'PAID', // Navy Blue settled payment
-      paymentMethod: 'FONEPAY_QR',
-      referenceNote: 'Partial credit payment sent via Fonepay to Shopkeeper QR',
-      isImmutable: true,
-      createdAt: d0.toISOString(),
-    },
-    {
-      id: 'tx_006',
-      transactionNumber: 'BF-TX-1006',
-      timestamp: d0.getTime(),
-      dateAD: d0.toISOString().split('T')[0],
-      dateBS: bs0.bsStr,
-      dateBSFormatted: bs0.bsFormatted,
-      type: 'PURCHASE',
-      mealCategory: 'SNACK_KHAJA',
-      shopName: 'Shree Krishna Khaja Ghar & Canteen',
-      couponCode: 'BF-FOX-7821',
-      items: [
-        { id: 'itm_10', name: 'Buff C-Momo (Hot Chilly)', qty: 1, unitPrice: 170, totalPrice: 170 },
-        { id: 'itm_11', name: 'Cold Drink 250ml', qty: 1, unitPrice: 60, totalPrice: 60 },
-      ],
-      subtotal: 230,
-      discount: 0,
-      netAmount: 230,
-      paymentStatus: 'CREDIT', // Red (Credit)
-      paymentMethod: 'COUPON_CREDIT',
-      referenceNote: 'Today 5 PM snack using coupon',
-      isImmutable: true,
-      createdAt: d0.toISOString(),
+export function getStoredAdminPin(): string {
+  try {
+    if (typeof window !== 'undefined') {
+      const pin = localStorage.getItem(STORAGE_KEY_ADMIN_PIN);
+      if (pin && pin.trim().length === 4) return pin.trim();
     }
-  ];
+  } catch (e) {
+    // fallback
+  }
+  return DEFAULT_ADMIN_PIN;
+}
+
+export function saveStoredAdminPin(newPin: string): boolean {
+  try {
+    if (typeof window !== 'undefined' && newPin.trim().length === 4) {
+      localStorage.setItem(STORAGE_KEY_ADMIN_PIN, newPin.trim());
+      return true;
+    }
+  } catch (e) {
+    console.error('Failed to save admin PIN:', e);
+  }
+  return false;
+}
+
+export function checkAdminPin(enteredPin: string): boolean {
+  const currentPin = getStoredAdminPin();
+  return enteredPin.trim() === currentPin;
+}
+
+// Clean, empty database initialization (zero dummy/seed transactions)
+export function generateSeedTransactions(): LedgerTransaction[] {
+  return [];
 }
 
 export function loadTransactions(): LedgerTransaction[] {
@@ -293,13 +156,14 @@ export function loadCouponProfile(): CouponProfile {
     }
 
     const parsed: CouponProfile = JSON.parse(raw);
-    // If shopName is still the old placeholder, update to Darjeeling momo
-    if (parsed.shopName === 'Shree Krishna Khaja Ghar & Canteen' || !parsed.shopPhone) {
-      parsed.shopName = 'Darjeeling momo';
-      parsed.shopAddress = 'Itahari-6, Sky Plaza';
-      parsed.shopPhone = '9802755605';
-      saveCouponProfile(parsed);
+    parsed.shopName = 'Darjeeling momo';
+    parsed.shopAddress = 'Itahari-6, Sky Plaza';
+    parsed.shopPhone = '9802755605';
+    if (!parsed.holderName || parsed.holderName === 'Bipin Chhetri') {
+      parsed.holderName = 'Blue Fox';
+      parsed.holderPhone = '+977 9802755605';
     }
+    saveCouponProfile(parsed);
     return parsed;
   } catch (err) {
     return DEFAULT_COUPON;

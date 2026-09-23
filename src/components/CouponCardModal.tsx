@@ -201,17 +201,17 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
       const rowX = 65;
       ctx.font = 'bold 19px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#0f172a';
-      ctx.fillText(`Customer Name (ग्राहक): ${couponProfile.holderName || 'Bipin Chhetri'}`, rowX, custBoxY + 76);
+      ctx.fillText(`Customer Name (ग्राहक): ${couponProfile.holderName || 'Blue Fox'}`, rowX, custBoxY + 76);
 
       ctx.font = '17px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#334155';
-      ctx.fillText(`Customer Phone: ${couponProfile.holderPhone || '+977 9801234567'}`, rowX, custBoxY + 112);
+      ctx.fillText(`Customer Phone: ${couponProfile.holderPhone || '+977 9802755605'}`, rowX, custBoxY + 112);
       ctx.fillText(`Registered Shop: ${couponProfile.shopName || 'Darjeeling momo'} (${couponProfile.shopAddress || 'Itahari-6, Sky Plaza'})`, rowX, custBoxY + 148);
       ctx.fillText(`Validity Session: ${couponProfile.issueDateBS} to ${couponProfile.validUntilBS} BS`, rowX, custBoxY + 184);
 
       ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
       ctx.fillStyle = '#0369a1';
-      ctx.fillText(`Credit Limit (उधारो सिमा): Rs. ${(couponProfile.creditLimit || 15000).toLocaleString()}`, rowX, custBoxY + 222);
+      ctx.fillText(`Credit Limit (उधारो सिमा): Rs. ${(couponProfile.creditLimit || 25000).toLocaleString()}`, rowX, custBoxY + 222);
 
       // 7. Footer Notice
       ctx.textAlign = 'center';
@@ -222,7 +222,7 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
 
       // Trigger download
       const safeShop = (couponProfile.shopName || 'Darjeeling_momo').replace(/[^a-zA-Z0-9]/g, '_');
-      const safeHolder = (couponProfile.holderName || 'Bipin_Chhetri').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeHolder = (couponProfile.holderName || 'Blue_Fox').replace(/[^a-zA-Z0-9]/g, '_');
       const dataUrl = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = dataUrl;
