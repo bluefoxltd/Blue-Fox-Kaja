@@ -30,6 +30,7 @@ import { NepaliDateFilterBar } from './NepaliDateFilterBar';
 import { LedgerTable } from './LedgerTable';
 import { formatNepaliRupees, formatBsDateString, getCurrentBsDate } from '../utils/nepaliDate';
 import { syncManager } from '../utils/syncManager';
+import { PrintStatementModal } from './PrintStatementModal';
 
 interface ShopkeeperLedgerViewProps {
   couponProfile: CouponProfile;
@@ -48,6 +49,7 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
   const todayStr = formatBsDateString(currentBs);
 
   const [activeTab, setActiveTab] = useState<'ledger' | 'summary' | 'items'>('ledger');
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [filters, setFilters] = useState<FilterOptions>({
     dateRangePreset: 'ALL',
     fromBS: '',
@@ -110,7 +112,7 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
   };
 
   const handlePrint = () => {
-    window.print();
+    setIsPrintModalOpen(true);
   };
 
   const creditLimit = couponProfile.creditLimit || 25000;
@@ -399,6 +401,8 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
 
             <LedgerTable
               transactions={filteredTransactions}
+              couponCode={couponProfile.couponCode}
+              couponProfile={couponProfile}
               onOpenDailyFoodEntry={() => {}}
               onOpenPaymentOut={() => {}}
               onOpenPurchaseReturn={() => {}}
@@ -589,6 +593,14 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
           )}
         </div>
       )}
+
+      {/* Detailed Accountability Printable Statement Modal */}
+      <PrintStatementModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        transactions={filteredTransactions}
+        couponProfile={couponProfile}
+      />
 
     </div>
   );

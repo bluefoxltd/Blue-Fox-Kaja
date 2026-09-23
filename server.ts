@@ -31,7 +31,101 @@ interface DatabaseSchema {
 }
 
 const DEFAULT_DB: DatabaseSchema = {
-  transactions: [],
+  transactions: [
+    {
+      id: 'tx_8451',
+      transactionNumber: 'BF-TX-8451',
+      timestamp: 1774345200000,
+      dateAD: '2026-09-23',
+      dateBS: '2083-06-06',
+      dateBSFormatted: '2083 Ashoj 06',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_8451_1', name: 'Ice', qty: 5, unitPrice: 20, totalPrice: 100 },
+        { id: 'item_8451_2', name: 'Chiya', qty: 2, unitPrice: 20, totalPrice: 40 },
+        { id: 'item_8451_3', name: 'Veg Chowmein', qty: 1, unitPrice: 80, totalPrice: 80 },
+      ],
+      subtotal: 220,
+      discount: 0,
+      netAmount: 220,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-23T07:00:00.000Z',
+    },
+    {
+      id: 'tx_3870',
+      transactionNumber: 'BF-TX-3870',
+      timestamp: 1774258900000,
+      dateAD: '2026-09-22',
+      dateBS: '2083-06-05',
+      dateBSFormatted: '2083 Ashoj 05',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_3870_1', name: 'Chiya', qty: 4, unitPrice: 20, totalPrice: 80 },
+        { id: 'item_3870_2', name: 'cig', qty: 5, unitPrice: 20, totalPrice: 100 },
+        { id: 'item_3870_3', name: 'Egg Chowmein', qty: 2, unitPrice: 100, totalPrice: 200 },
+      ],
+      subtotal: 380,
+      discount: 0,
+      netAmount: 380,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-22T07:00:00.000Z',
+    },
+    {
+      id: 'tx_3428',
+      transactionNumber: 'BF-TX-3428',
+      timestamp: 1774172400000,
+      dateAD: '2026-09-21',
+      dateBS: '2083-06-04',
+      dateBSFormatted: '2083 Ashoj 04',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_3428_1', name: 'tea', qty: 2, unitPrice: 20, totalPrice: 40 },
+        { id: 'item_3428_2', name: 'chicken Jhol momo', qty: 2, unitPrice: 150, totalPrice: 300 },
+      ],
+      subtotal: 340,
+      discount: 0,
+      netAmount: 340,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-21T07:00:00.000Z',
+    },
+    {
+      id: 'tx_8131',
+      transactionNumber: 'BF-TX-8131',
+      timestamp: 1774172400000,
+      dateAD: '2026-09-21',
+      dateBS: '2083-06-04',
+      dateBSFormatted: '2083 Ashoj 04',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_8131_1', name: 'ice', qty: 5, unitPrice: 20, totalPrice: 100 },
+      ],
+      subtotal: 100,
+      discount: 0,
+      netAmount: 100,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-21T07:15:00.000Z',
+    },
+  ],
   couponProfile: {
     couponCode: 'BF-FOX-7821',
     holderName: 'Blue Fox',
@@ -160,6 +254,27 @@ async function startServer() {
     broadcastUpdate('LEDGER_UPDATE', { newTransactionId: newTx.id });
 
     res.status(201).json({ success: true, transaction: newTx, total: db.transactions.length });
+  });
+
+  // POST /api/ledger - Batch sync transactions (alias for direct /api/ledger posts)
+  app.post('/api/ledger', (req: Request, res: Response) => {
+    const { transactions, couponProfile } = req.body;
+    if (Array.isArray(transactions)) {
+      db.transactions = transactions;
+    }
+    if (couponProfile) {
+      db.couponProfile = {
+        ...db.couponProfile,
+        ...couponProfile,
+        shopName: 'Darjeeling momo',
+        shopAddress: 'Itahari-6, Sky Plaza',
+        shopPhone: '9802755605',
+      };
+    }
+    saveDatabase();
+    broadcastUpdate('LEDGER_UPDATE');
+
+    res.json({ success: true, count: db.transactions.length });
   });
 
   // POST /api/ledger/sync - Batch sync transactions

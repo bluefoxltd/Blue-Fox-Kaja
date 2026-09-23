@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide everything on the page by default during print */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Display only the accountability printable statement */
+  #accountability-printable-statement,
+  #accountability-printable-statement * {
+    visibility: visible;
+  }
+
+  #accountability-printable-statement {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 1cm !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Hide buttons, overlays, and controls */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Prevent awkward page break splits */
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 1cm;
+  }
+}

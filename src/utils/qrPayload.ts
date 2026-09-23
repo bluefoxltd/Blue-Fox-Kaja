@@ -127,18 +127,17 @@ export function decodeTransactionsFromQr(encoded: string): LedgerTransaction[] {
 }
 
 /**
- * Builds the full shopkeeper URL embedding both coupon and live ledger data
+ * Builds the fixed, permanent shopkeeper URL for the QR Pass.
+ * The link is clean and permanent: /?view=shopkeeper&coupon=BF-FOX-7821
+ * It NEVER changes when transactions are added or modified, allowing
+ * the QR code to be printed or saved once while the shopkeeper view
+ * auto-detects and auto-syncs live data directly from the cloud.
  */
-export function buildShopkeeperQrUrl(couponCode: string, transactions: LedgerTransaction[]): string {
+export function buildShopkeeperQrUrl(couponCode: string, _transactions?: LedgerTransaction[]): string {
   const origin = typeof window !== 'undefined' && window.location.origin
     ? window.location.origin
-    : 'https://bluefox.khata.np';
+    : 'https://blue-fox-kaja.vercel.app';
 
   const cleanCode = encodeURIComponent((couponCode || 'BF-FOX-7821').trim().toUpperCase());
-  const encodedData = encodeTransactionsForQr(transactions);
-
-  if (encodedData) {
-    return `${origin}/?view=shopkeeper&coupon=${cleanCode}&d=${encodedData}`;
-  }
   return `${origin}/?view=shopkeeper&coupon=${cleanCode}`;
 }

@@ -92,8 +92,10 @@ export const KhataVoiceAssistant: React.FC<KhataVoiceAssistantProps> = ({
       const cleanText = text
         .replace(/Rs\./g, ' रुपैयाँ ')
         .replace(/रू\./g, ' रुपैयाँ ')
-        .replace(/•/g, ' ')
-        .replace(/\*/g, '')
+        .replace(/NPR/gi, ' रुपैयाँ ')
+        .replace(/[•*#]/g, ' ')
+        .replace(/BF-FOX-\d+/g, 'ब्लु फक्स पास')
+        .replace(/[()]/g, ' ')
         .replace(/:/g, ', ');
 
       const utterance = new SpeechSynthesisUtterance(cleanText);

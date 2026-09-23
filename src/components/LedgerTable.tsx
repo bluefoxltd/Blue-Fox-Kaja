@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Lock, 
   ChevronDown, 
@@ -7,19 +7,25 @@ import {
   Undo2, 
   Wallet, 
   Download, 
+  Upload,
+  Printer,
   Calendar, 
   FileText,
   AlertCircle,
+  CheckCircle2,
   Trash2,
   PlusCircle
 } from 'lucide-react';
-import { LedgerTransaction } from '../types';
+import { LedgerTransaction, CouponProfile } from '../types';
 import { formatNepaliRupees, formatBsDisplay } from '../utils/nepaliDate';
-import { exportLedgerToCsv } from '../utils/storage';
+import { exportLedgerToCsv, loadCouponProfile } from '../utils/storage';
+import { parseCsvToTransactions } from '../utils/csvImport';
+import { PrintStatementModal } from './PrintStatementModal';
 
 interface LedgerTableProps {
   transactions: LedgerTransaction[];
   couponCode?: string;
+  couponProfile?: CouponProfile;
   isShopkeeperView?: boolean;
   readOnly?: boolean;
   onOpenNewEntry?: () => void;
@@ -28,19 +34,27 @@ interface LedgerTableProps {
   onOpenPaymentOut?: () => void;
   onOpenPurchaseReturn?: () => void;
   onOpenClearDatabase?: () => void;
+  onImportTransactions?: (imported: LedgerTransaction[]) => void;
 }
 
 export const LedgerTable: React.FC<LedgerTableProps> = ({
   transactions,
   couponCode = 'BF-FOX-7821',
+  couponProfile,
   isShopkeeperView = false,
   readOnly = false,
   onOpenNewEntry,
   onClearDatabase,
   onOpenDailyFoodEntry,
   onOpenClearDatabase,
+  onImportTransactions,
 }) => {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+  const [importNotification, setImportNotification] = useState<{ count: number; total: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeCouponProfile = couponProfile || loadCouponProfile();
 
   const isRestricted = isShopkeeperView || readOnly;
   const triggerNewEntry = onOpenNewEntry || onOpenDailyFoodEntry;
@@ -54,6 +68,33 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     exportLedgerToCsv(transactions, couponCode);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      const result = parseCsvToTransactions(content);
+      if (result.success && result.transactions.length > 0) {
+        if (onImportTransactions) {
+          onImportTransactions(result.transactions);
+        }
+        setImportNotification({ count: result.count, total: result.totalAmount });
+        setTimeout(() => setImportNotification(null), 6000);
+      } else {
+        alert(result.error || 'Failed to parse CSV file. Please make sure the CSV has headers.');
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   if (transactions.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs" id="empty-ledger-view">
@@ -65,14 +106,31 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           No food or payment records are currently in the database. All records have been cleared.
         </p>
         {triggerNewEntry && !isRestricted && (
-          <div className="mt-4 flex items-center justify-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={triggerNewEntry}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-950 hover:bg-blue-900 text-white flex items-center gap-1.5 shadow-sm transition-all"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-950 hover:bg-blue-900 text-white flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
               id="empty-state-new-entry-btn"
             >
               <PlusCircle className="w-3.5 h-3.5 text-amber-300" />
               <span>+ Add First Daily Snack (खाजा दर्ता)</span>
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv,text/csv"
+              className="hidden"
+              id="empty-import-ledger-csv-input"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              id="empty-import-ledger-csv-btn"
+            >
+              <Upload className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Import Statement (CSV)</span>
             </button>
           </div>
         )}
@@ -84,7 +142,7 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden" id="ledger-table-wrapper">
       
       {/* Table Section Header */}
-      <div className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/70">
+      <div className="p-4 sm:px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/70">
         <div>
           <h3 className="font-extrabold text-sm sm:text-base text-blue-950 flex items-center gap-2">
             <span>{isRestricted ? 'Darjeeling momo - Accountability Ledger' : 'Daily Food Credit & Payment Ledger (खाता विवरण)'}</span>
@@ -97,11 +155,11 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {triggerClearDb && !isRestricted && (
             <button
               onClick={triggerClearDb}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Clear all records from database"
               id="clear-db-table-btn"
             >
@@ -110,16 +168,68 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
             </button>
           )}
 
+          {/* Export Statement (CSV) */}
           <button
             onClick={handleDownloadCsv}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-100 text-blue-950 border border-slate-300 flex items-center gap-1.5 shadow-2xs transition-colors"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-100 text-blue-950 border border-slate-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
             id="download-ledger-csv-btn"
+            title="Download CSV statement of all records"
           >
             <Download className="w-3.5 h-3.5 text-blue-800" />
             <span>Export Statement (CSV)</span>
           </button>
+
+          {/* Hidden File Input for CSV Import */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".csv,text/csv"
+            className="hidden"
+            id="import-ledger-csv-input"
+          />
+
+          {/* Next Import Statement (CSV) */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            id="import-ledger-csv-btn"
+            title="Import previous data from CSV into accountability ledger"
+          >
+            <Upload className="w-3.5 h-3.5 text-emerald-700" />
+            <span>Import Statement (CSV)</span>
+          </button>
+
+          {/* Print Detailed Statement */}
+          <button
+            onClick={() => setIsPrintModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            id="print-ledger-statement-btn"
+            title="Print detailed accountability ledger statement"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-700" />
+            <span>Print Statement</span>
+          </button>
         </div>
       </div>
+
+      {/* Live Import Success Banner */}
+      {importNotification && (
+        <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-2.5 flex items-center justify-between text-xs text-emerald-800 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Successfully imported <strong>{importNotification.count} records</strong> totaling <strong>Rs. {importNotification.total.toLocaleString()}</strong> into accountability ledger! Live synced to all tabs & shopkeeper view.
+            </span>
+          </div>
+          <button 
+            onClick={() => setImportNotification(null)} 
+            className="text-emerald-700 hover:text-emerald-950 font-bold ml-2 text-sm px-1.5 py-0.5 rounded hover:bg-emerald-100"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Desktop / Tablet Table View */}
       <div className="overflow-x-auto">
@@ -333,6 +443,14 @@ export const LedgerTable: React.FC<LedgerTableProps> = ({
           Blue Fox Audit System • Nepali BS & AD Synchronized
         </div>
       </div>
+
+      {/* Detailed Accountability Printable Statement Modal */}
+      <PrintStatementModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        transactions={transactions}
+        couponProfile={activeCouponProfile}
+      />
 
     </div>
   );

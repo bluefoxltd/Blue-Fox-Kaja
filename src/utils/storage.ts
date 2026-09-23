@@ -60,13 +60,61 @@ export function checkAdminPin(enteredPin: string): boolean {
   return enteredPin.trim() === currentPin;
 }
 
-// Default active ledger transactions (BF-TX-3428 & BF-TX-8131)
+// Default active ledger transactions totaling Rs. 1,040 (4 active records from admin khata)
 export function generateSeedTransactions(): LedgerTransaction[] {
   return [
     {
+      id: 'tx_8451',
+      transactionNumber: 'BF-TX-8451',
+      timestamp: 1774345200000,
+      dateAD: '2026-09-23',
+      dateBS: '2083-06-06',
+      dateBSFormatted: '2083 Ashoj 06',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_8451_1', name: 'Ice', qty: 5, unitPrice: 20, totalPrice: 100 },
+        { id: 'item_8451_2', name: 'Chiya', qty: 2, unitPrice: 20, totalPrice: 40 },
+        { id: 'item_8451_3', name: 'Veg Chowmein', qty: 1, unitPrice: 80, totalPrice: 80 },
+      ],
+      subtotal: 220,
+      discount: 0,
+      netAmount: 220,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-23T07:00:00.000Z',
+    },
+    {
+      id: 'tx_3870',
+      transactionNumber: 'BF-TX-3870',
+      timestamp: 1774258900000,
+      dateAD: '2026-09-22',
+      dateBS: '2083-06-05',
+      dateBSFormatted: '2083 Ashoj 05',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_3870_1', name: 'Chiya', qty: 4, unitPrice: 20, totalPrice: 80 },
+        { id: 'item_3870_2', name: 'cig', qty: 5, unitPrice: 20, totalPrice: 100 },
+        { id: 'item_3870_3', name: 'Egg Chowmein', qty: 2, unitPrice: 100, totalPrice: 200 },
+      ],
+      subtotal: 380,
+      discount: 0,
+      netAmount: 380,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-22T07:00:00.000Z',
+    },
+    {
       id: 'tx_3428',
       transactionNumber: 'BF-TX-3428',
-      timestamp: 1774258800000,
+      timestamp: 1774172400000,
       dateAD: '2026-09-21',
       dateBS: '2083-06-04',
       dateBSFormatted: '2083 Ashoj 04',
@@ -75,8 +123,8 @@ export function generateSeedTransactions(): LedgerTransaction[] {
       shopName: 'Darjeeling momo',
       couponCode: 'BF-FOX-7821',
       items: [
-        { id: 'item_1', name: 'tea', qty: 2, unitPrice: 20, totalPrice: 40 },
-        { id: 'item_2', name: 'chicken Jhol momo', qty: 2, unitPrice: 150, totalPrice: 300 },
+        { id: 'item_3428_1', name: 'tea', qty: 2, unitPrice: 20, totalPrice: 40 },
+        { id: 'item_3428_2', name: 'chicken Jhol momo', qty: 2, unitPrice: 150, totalPrice: 300 },
       ],
       subtotal: 340,
       discount: 0,
@@ -89,7 +137,7 @@ export function generateSeedTransactions(): LedgerTransaction[] {
     {
       id: 'tx_8131',
       transactionNumber: 'BF-TX-8131',
-      timestamp: 1774258800000,
+      timestamp: 1774172400000,
       dateAD: '2026-09-21',
       dateBS: '2083-06-04',
       dateBSFormatted: '2083 Ashoj 04',
@@ -98,7 +146,7 @@ export function generateSeedTransactions(): LedgerTransaction[] {
       shopName: 'Darjeeling momo',
       couponCode: 'BF-FOX-7821',
       items: [
-        { id: 'item_3', name: 'ice', qty: 5, unitPrice: 20, totalPrice: 100 },
+        { id: 'item_8131_1', name: 'ice', qty: 5, unitPrice: 20, totalPrice: 100 },
       ],
       subtotal: 100,
       discount: 0,
@@ -120,7 +168,21 @@ export function loadTransactions(): LedgerTransaction[] {
       return initial;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    
+    // If local storage has older partial dataset (e.g. 880 or only 2 records), ensure the 4 active records are preserved
+    if (parsed.length > 0 && parsed.length < 4) {
+      const seeds = generateSeedTransactions();
+      const existingIds = new Set(parsed.map(t => t.id));
+      const missingSeeds = seeds.filter(s => !existingIds.has(s.id));
+      if (missingSeeds.length > 0) {
+        const merged = [...parsed, ...missingSeeds].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        saveTransactions(merged);
+        return merged;
+      }
+    }
+    
+    return parsed;
   } catch (err) {
     console.warn('Failed to load ledger from localStorage:', err);
     return [];

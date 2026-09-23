@@ -212,6 +212,62 @@ export function getThisWeekBsRange(): { fromBS: string; toBS: string } {
 }
 
 /**
+ * Convert BS Date to AD Date
+ */
+export function bsToAd(bsInput: NepaliDateObject | string): Date {
+  let bs: NepaliDateObject;
+  if (typeof bsInput === 'string') {
+    const parts = bsInput.split('-').map(Number);
+    bs = {
+      year: parts[0] || 2083,
+      month: parts[1] || 1,
+      day: parts[2] || 1,
+    };
+  } else {
+    bs = bsInput;
+  }
+
+  let totalDays = 0;
+
+  if (bs.year >= ANCHOR_BS_YEAR) {
+    for (let y = ANCHOR_BS_YEAR; y < bs.year; y++) {
+      const yearDays = BS_MONTH_DAYS[y] || [31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 30];
+      totalDays += yearDays.reduce((a, b) => a + b, 0);
+    }
+    const currentYearDays = BS_MONTH_DAYS[bs.year] || [31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 30];
+    for (let m = 1; m < bs.month; m++) {
+      totalDays += currentYearDays[m - 1] || 30;
+    }
+    totalDays += (bs.day - ANCHOR_BS_DAY);
+  } else {
+    for (let y = bs.year; y < ANCHOR_BS_YEAR; y++) {
+      const yearDays = BS_MONTH_DAYS[y] || [31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 30];
+      totalDays -= yearDays.reduce((a, b) => a + b, 0);
+    }
+    const currentYearDays = BS_MONTH_DAYS[bs.year] || [31, 31, 32, 31, 31, 30, 30, 29, 30, 29, 30, 30];
+    for (let m = 1; m < bs.month; m++) {
+      totalDays += currentYearDays[m - 1] || 30;
+    }
+    totalDays += (bs.day - ANCHOR_BS_DAY);
+  }
+
+  const result = new Date(ANCHOR_AD_DATE.getTime());
+  result.setDate(result.getDate() + totalDays);
+  return result;
+}
+
+/**
+ * Convert BS date to formatted AD string (YYYY-MM-DD)
+ */
+export function bsToAdString(bsInput: NepaliDateObject | string): string {
+  const ad = bsToAd(bsInput);
+  const y = ad.getFullYear();
+  const m = (ad.getMonth() + 1).toString().padStart(2, '0');
+  const d = ad.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Format currency in Nepalese Rupees (रू. / Rs.)
  */
 export function formatNepaliRupees(amount: number): string {

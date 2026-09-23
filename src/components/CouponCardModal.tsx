@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { 
   X, 
@@ -45,13 +45,15 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
     .filter((t) => t.paymentStatus === 'CREDIT')
     .reduce((sum, t) => sum + (t.netAmount || 0), 0);
 
-  // Compute the live QR URL for the shopkeeper with embedded ledger data
-  const shopkeeperUrl = buildShopkeeperQrUrl(couponProfile.couponCode, transactions);
+  // Fixed permanent QR URL for the shopkeeper pass (does NOT change when transactions are added)
+  const shopkeeperUrl = useMemo(() => {
+    return buildShopkeeperQrUrl(couponProfile.couponCode);
+  }, [couponProfile.couponCode]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    // Generate high resolution QR Code
+    // Generate clean, high resolution, fixed QR Code
     QRCode.toDataURL(shopkeeperUrl, {
       width: 480,
       margin: 2,
@@ -67,7 +69,7 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
       .catch((err) => {
         console.error('Error generating QR code:', err);
       });
-  }, [isOpen, shopkeeperUrl, couponProfile.couponCode, transactions]);
+  }, [isOpen, shopkeeperUrl]);
 
   if (!isOpen) return null;
 
@@ -333,13 +335,13 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
               Shopkeeper scans this pass to view live credit ledger & statements
             </p>
 
-            {/* Live Data Synchronized into QR indicator */}
+            {/* Fixed Permanent QR Pass indicator */}
             <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-300 shadow-2xs">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span>{transactions.length} Records (Rs. {totalDue.toLocaleString()}) Synced in QR Link</span>
+              <span>Fixed Permanent Pass • Auto-Syncs Live ({transactions.length} Records • Rs. {totalDue.toLocaleString()})</span>
             </div>
 
             {/* Coupon Holder & Account Details */}

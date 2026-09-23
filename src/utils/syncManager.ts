@@ -17,26 +17,51 @@ type StatusListener = (status: SyncStatus) => void;
 export function mergeTransactionLists(localTxs: LedgerTransaction[], incomingTxs: LedgerTransaction[]): LedgerTransaction[] {
   const map = new Map<string, LedgerTransaction>();
   
-  // 1. Add all local transactions
+  const insertOrMerge = (t: LedgerTransaction) => {
+    if (!t || !t.id) return;
+    const existing = map.get(t.id);
+    if (!existing) {
+      map.set(t.id, t);
+      return;
+    }
+
+    // Both exist: NEVER downgrade items or netAmount!
+    const existingItems = Array.isArray(existing.items) ? existing.items.length : 0;
+    const incomingItems = Array.isArray(t.items) ? t.items.length : 0;
+
+    if (incomingItems > existingItems) {
+      map.set(t.id, t);
+      return;
+    }
+    if (existingItems > incomingItems) {
+      // keep existing with more items
+      return;
+    }
+
+    // Same items count: keep the one with higher netAmount (never downgrade order totals)
+    if ((t.netAmount || 0) > (existing.netAmount || 0)) {
+      map.set(t.id, t);
+      return;
+    }
+    if ((existing.netAmount || 0) > (t.netAmount || 0)) {
+      // keep existing
+      return;
+    }
+
+    // Otherwise newer timestamp
+    if ((t.timestamp || 0) >= (existing.timestamp || 0)) {
+      map.set(t.id, t);
+    }
+  };
+
   if (Array.isArray(localTxs)) {
-    for (const t of localTxs) {
-      if (t && t.id) {
-        map.set(t.id, t);
-      }
-    }
+    for (const t of localTxs) insertOrMerge(t);
   }
-
-  // 2. Add all incoming transactions
   if (Array.isArray(incomingTxs)) {
-    for (const t of incomingTxs) {
-      if (t && t.id) {
-        // If already exists, keep the one with newest timestamp or updated info
-        map.set(t.id, t);
-      }
-    }
+    for (const t of incomingTxs) insertOrMerge(t);
   }
 
-  // 3. Sort newest first
+  // Sort newest first
   return Array.from(map.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 }
 
@@ -253,8 +278,8 @@ class SyncManager {
     if (this.isPublishing) return;
 
     try {
-      // Poll Cloud Real-Time Relay
-      const cloudRes = await fetch(`https://ntfy.sh/${this.cloudTopic}/json?poll=1&since=all`, {
+      // Poll Cloud Real-Time Relay (instant poll without blocking)
+      const cloudRes = await fetch(`https://ntfy.sh/${this.cloudTopic}/json?poll=1`, {
         cache: 'no-store',
       });
 
@@ -281,7 +306,7 @@ class SyncManager {
       // offline or network glitch
     }
 
-    // Also check local /api/ledger if available
+    // Also check Vercel /api/ledger for serverless synchronized state
     try {
       const localRes = await fetch('/api/ledger', { cache: 'no-store' });
       if (localRes.ok) {
@@ -291,7 +316,9 @@ class SyncManager {
           if (data && Array.isArray(data.transactions) && data.transactions.length > 0) {
             const current = loadTransactions();
             const merged = mergeTransactionLists(current, data.transactions);
-            if (merged.length !== current.length) {
+            const hasChanges = merged.length !== current.length || 
+              JSON.stringify(merged) !== JSON.stringify(current);
+            if (hasChanges) {
               this.notifyListeners({
                 transactions: merged,
                 couponProfile: data.couponProfile || loadCouponProfile(),
@@ -306,7 +333,7 @@ class SyncManager {
     }
   }
 
-  // Process incoming sync message safely (NEVER accidentally wipes data)
+  // Process incoming sync message safely (NEVER accidentally wipes or downgrades data)
   private handleIncomingPayload(payload: any): boolean {
     if (!payload || payload.senderId === this.clientId) {
       return false;
@@ -338,7 +365,7 @@ class SyncManager {
 
       // Only notify if there are actual new or updated items
       const hasChanges = merged.length !== current.length || 
-        JSON.stringify(merged[0]) !== JSON.stringify(current[0]);
+        JSON.stringify(merged) !== JSON.stringify(current);
 
       if (hasChanges) {
         this.notifyListeners({
@@ -371,7 +398,7 @@ class SyncManager {
     }
   }
 
-  // Publish to Cloud Relay
+  // Publish to Cloud Relay and Vercel serverless cache
   private async publishToCloud(
     type: 'SYNC' | 'CLEAR_DATABASE',
     transactions: LedgerTransaction[],
@@ -389,19 +416,33 @@ class SyncManager {
       senderId: this.clientId,
     };
 
+    const payloadStr = JSON.stringify(payload);
+
     try {
+      // 1. Publish directly to ntfy cloud topic with Cache headers
       await fetch(`https://ntfy.sh/${this.cloudTopic}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Cache': 'yes',
           'X-Cache': 'yes',
           'X-Expires': '1d',
+          'Title': 'LEDGER',
         },
-        body: JSON.stringify(payload),
+        body: payloadStr,
       });
     } catch (e) {
       console.warn('Cloud relay publish failed:', e);
+    }
+
+    // 2. Publish to Vercel /api/ledger
+    try {
+      await fetch('/api/ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payloadStr,
+      });
+    } catch (apiErr) {
+      // ignore
     } finally {
       this.isPublishing = false;
     }
@@ -565,8 +606,44 @@ class SyncManager {
     return { success: false, message: 'Current PIN does not match' };
   }
 
-  public async fetchLatest(): Promise<void> {
+  public async fetchLatest(): Promise<{ transactions: LedgerTransaction[]; couponProfile: CouponProfile; lastUpdated: number } | null> {
+    // 1. Check Vercel /api/ledger first
+    try {
+      const localRes = await fetch('/api/ledger', { cache: 'no-store' });
+      if (localRes.ok) {
+        const contentType = localRes.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await localRes.json();
+          if (data && Array.isArray(data.transactions) && data.transactions.length > 0) {
+            const current = loadTransactions();
+            const merged = mergeTransactionLists(current, data.transactions);
+            saveTransactions(merged);
+            const coupon = data.couponProfile || loadCouponProfile();
+            this.notifyListeners({
+              transactions: merged,
+              couponProfile: coupon,
+              lastUpdated: data.lastUpdated || Date.now(),
+            }, false);
+            return {
+              transactions: merged,
+              couponProfile: coupon,
+              lastUpdated: data.lastUpdated || Date.now(),
+            };
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 2. Trigger poll to pull latest from cloud relay
     await this.pollEvery1Sec();
+
+    return {
+      transactions: loadTransactions(),
+      couponProfile: loadCouponProfile(),
+      lastUpdated: Date.now(),
+    };
   }
 }
 

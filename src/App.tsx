@@ -117,11 +117,17 @@ export default function App() {
     }
   }, []);
 
-  // Ensure current ledger data is pushed to cloud cache on mount so scanning phone receives it
+  // Fetch latest authoritative ledger data on mount to guarantee exact accuracy across all tabs and browsers
   useEffect(() => {
-    if (transactions.length > 0) {
-      syncManager.syncAll(transactions, couponProfile);
-    }
+    syncManager.fetchLatest().then((latestData) => {
+      if (latestData && Array.isArray(latestData.transactions) && latestData.transactions.length > 0) {
+        setTransactions((prev) => {
+          const merged = mergeTransactionLists(prev, latestData.transactions);
+          saveTransactions(merged);
+          return merged;
+        });
+      }
+    });
   }, []);
 
   // Subscribe to live real-time sync (SSE + BroadcastChannel)
@@ -204,6 +210,16 @@ export default function App() {
   const handleOpenPaymentOut = () => {
     setEntryModalInitialType('PAYMENT_OUT');
     setEntryModalOpen(true);
+  };
+
+  // Live import CSV handler: saves to localStorage, updates state, and immediately broadcasts to cloud & backend
+  const handleImportTransactions = (imported: LedgerTransaction[]) => {
+    setTransactions((prev) => {
+      const merged = mergeTransactionLists(prev, imported);
+      saveTransactions(merged);
+      syncManager.syncAll(merged, couponProfile);
+      return merged;
+    });
   };
 
   // Filter calculations
@@ -449,8 +465,10 @@ export default function App() {
                 <LedgerTable
                   transactions={filteredTransactions}
                   couponCode={couponProfile.couponCode}
+                  couponProfile={couponProfile}
                   onOpenNewEntry={handleOpenNewPurchase}
                   onClearDatabase={() => setClearDbModalOpen(true)}
+                  onImportTransactions={handleImportTransactions}
                   readOnly={false}
                 />
               </>
