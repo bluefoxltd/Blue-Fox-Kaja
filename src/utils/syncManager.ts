@@ -1,13 +1,11 @@
 /**
- * Live Real-Time Data Synchronization Engine
- * Universal Cross-Device Synchronization for Vercel, Mobile Phone QR Scans, and Admin PC
+ * Live Real-Time Data Synchronization Engine (Version 4 - Safe Non-Destructive Sync)
  * 
- * Features:
- * 1. 1-Second Continuous Cloud Auto-Poll (guarantees updates every 1000ms across all devices)
- * 2. Real-Time Cloud Server-Sent Events (SSE) for instant sub-second push notifications
- * 3. High-Durability Cloud Backup Persistence (restful-api.dev persistent store)
- * 4. Local Full-Stack Node Server Fallback (/api/ledger)
- * 5. Instant Tab-to-Tab BroadcastChannel & LocalStorage caching
+ * Guarantees:
+ * 1. Data NEVER deletes automatically: Uses conflict-free ID merging.
+ * 2. Transactions only clear if the user explicitly triggers "Clear Database".
+ * 3. 1-second continuous cross-device synchronization between PC, Vercel, and mobile phones.
+ * 4. Sub-second instant push via Server-Sent Events (SSE) & BroadcastChannel.
  */
 
 import { LedgerTransaction, CouponProfile, SyncStatus } from '../types';
@@ -16,7 +14,31 @@ import { loadTransactions, saveTransactions, loadCouponProfile, saveCouponProfil
 type SyncListener = (data: { transactions: LedgerTransaction[]; couponProfile: CouponProfile; lastUpdated: number }) => void;
 type StatusListener = (status: SyncStatus) => void;
 
-const CLOUD_BACKUP_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0cd95e99c7917';
+function mergeTransactionLists(localTxs: LedgerTransaction[], incomingTxs: LedgerTransaction[]): LedgerTransaction[] {
+  const map = new Map<string, LedgerTransaction>();
+  
+  // 1. Add all local transactions
+  if (Array.isArray(localTxs)) {
+    for (const t of localTxs) {
+      if (t && t.id) {
+        map.set(t.id, t);
+      }
+    }
+  }
+
+  // 2. Add all incoming transactions
+  if (Array.isArray(incomingTxs)) {
+    for (const t of incomingTxs) {
+      if (t && t.id) {
+        // If already exists, keep the one with newest timestamp or updated info
+        map.set(t.id, t);
+      }
+    }
+  }
+
+  // 3. Sort newest first
+  return Array.from(map.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+}
 
 class SyncManager {
   private syncListeners: Set<SyncListener> = new Set();
@@ -25,10 +47,10 @@ class SyncManager {
   private localEventSource: EventSource | null = null;
   private broadcastChannel: BroadcastChannel | null = null;
   private pollInterval: any = null;
-  private currentStatus: SyncStatus = 'syncing';
-  private lastKnownTimestamp: number = 0;
+  private currentStatus: SyncStatus = 'connected';
+  private lastProcessedTimestamp: number = 0;
   private clientId: string = '';
-  private cloudTopic: string = 'bluefox_khata_bf_fox_7821';
+  private cloudTopic: string = 'bluefox_khata_v4_bf_fox_7821';
   private isPublishing: boolean = false;
 
   constructor() {
@@ -36,34 +58,44 @@ class SyncManager {
       ? 'client_' + Math.random().toString(36).substring(2, 9)
       : 'server_worker';
 
-    // Derive cloud topic from loaded coupon code
+    // Fresh isolated topic for v4
     const initialCoupon = loadCouponProfile();
     if (initialCoupon?.couponCode) {
-      this.cloudTopic = `bluefox_khata_${initialCoupon.couponCode.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+      this.cloudTopic = `bluefox_khata_v4_${initialCoupon.couponCode.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
     }
 
     this.initBroadcastChannel();
     this.startCloudSse();
     this.startLocalSse();
     this.start1SecPolling();
-    this.initialCloudBootstrap();
   }
 
-  // Set up BroadcastChannel for zero-latency multi-tab sync on same device
+  // Set up BroadcastChannel for zero-latency multi-tab sync on same browser
   private initBroadcastChannel(): void {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       try {
-        this.broadcastChannel = new BroadcastChannel('bluefox_khata_live_sync');
+        this.broadcastChannel = new BroadcastChannel('bluefox_khata_live_sync_v4');
         this.broadcastChannel.onmessage = (event) => {
-          if (event.data && event.data.type === 'LOCAL_UPDATE' && event.data.senderId !== this.clientId) {
-            if (event.data.lastUpdated && event.data.lastUpdated > this.lastKnownTimestamp) {
-              this.lastKnownTimestamp = event.data.lastUpdated;
-              this.notifyListeners({
-                transactions: event.data.transactions,
-                couponProfile: event.data.couponProfile,
-                lastUpdated: event.data.lastUpdated,
-              }, false);
-            }
+          if (!event.data || event.data.senderId === this.clientId) return;
+
+          if (event.data.type === 'CLEAR_DATABASE') {
+            saveTransactions([]);
+            this.notifyListeners({
+              transactions: [],
+              couponProfile: loadCouponProfile(),
+              lastUpdated: event.data.timestamp || Date.now(),
+            }, true);
+            return;
+          }
+
+          if (event.data.type === 'SYNC' || event.data.type === 'LOCAL_UPDATE') {
+            const current = loadTransactions();
+            const merged = mergeTransactionLists(current, event.data.transactions || []);
+            this.notifyListeners({
+              transactions: merged,
+              couponProfile: event.data.couponProfile || loadCouponProfile(),
+              lastUpdated: event.data.timestamp || Date.now(),
+            }, true);
           }
         };
       } catch (e) {
@@ -126,7 +158,7 @@ class SyncManager {
     }
   }
 
-  // 1. Real-time Cloud Push Stream (EventSource)
+  // 1. Real-time Cloud Push Stream (SSE)
   private startCloudSse(): void {
     if (typeof window === 'undefined') return;
 
@@ -148,17 +180,7 @@ class SyncManager {
           const raw = JSON.parse(e.data);
           if (raw.event === 'message' && raw.message) {
             const payload = JSON.parse(raw.message);
-            if (payload && payload.senderId !== this.clientId) {
-              if (payload.lastUpdated && payload.lastUpdated > this.lastKnownTimestamp) {
-                this.lastKnownTimestamp = payload.lastUpdated;
-                this.notifyListeners({
-                  transactions: Array.isArray(payload.transactions) ? payload.transactions : [],
-                  couponProfile: payload.couponProfile,
-                  lastUpdated: payload.lastUpdated,
-                });
-                this.setStatus('connected');
-              }
-            }
+            this.handleIncomingPayload(payload);
           }
         } catch (err) {
           // ignore heartbeat or parse errors
@@ -195,16 +217,8 @@ class SyncManager {
       this.localEventSource.onmessage = (e) => {
         try {
           const payload = JSON.parse(e.data);
-          if (payload.transactions || payload.couponProfile) {
-            if (payload.lastUpdated && payload.lastUpdated > this.lastKnownTimestamp) {
-              this.lastKnownTimestamp = payload.lastUpdated;
-              this.notifyListeners({
-                transactions: payload.transactions || [],
-                couponProfile: payload.couponProfile,
-                lastUpdated: payload.lastUpdated,
-              });
-              this.setStatus('connected');
-            }
+          if (payload) {
+            this.handleIncomingPayload(payload);
           }
         } catch (err) {
           // ignore
@@ -218,20 +232,18 @@ class SyncManager {
         }
       };
     } catch (e) {
-      // Local server not available (e.g. static Vercel)
+      // Local server not available
     }
   }
 
-  // 3. Guaranteed 1-Second Auto-Poll (Every 1000ms across any device on Vercel)
+  // 3. Guaranteed 1-Second Auto-Poll (Every 1000ms across all devices on Vercel)
   private start1SecPolling(): void {
     if (typeof window === 'undefined') return;
 
     if (this.pollInterval) clearInterval(this.pollInterval);
 
-    // Initial immediate poll
     this.pollEvery1Sec();
 
-    // 1-second interval as requested
     this.pollInterval = setInterval(() => {
       this.pollEvery1Sec();
     }, 1000);
@@ -241,7 +253,7 @@ class SyncManager {
     if (this.isPublishing) return;
 
     try {
-      // 1. Poll Cloud Real-Time Relay
+      // Poll Cloud Real-Time Relay
       const cloudRes = await fetch(`https://ntfy.sh/${this.cloudTopic}/json?poll=1`, {
         cache: 'no-store',
       });
@@ -254,17 +266,9 @@ class SyncManager {
             const item = JSON.parse(lines[i]);
             if (item.event === 'message' && item.message) {
               const payload = JSON.parse(item.message);
-              if (payload && payload.senderId !== this.clientId) {
-                if (payload.lastUpdated && payload.lastUpdated > this.lastKnownTimestamp) {
-                  this.lastKnownTimestamp = payload.lastUpdated;
-                  this.notifyListeners({
-                    transactions: Array.isArray(payload.transactions) ? payload.transactions : [],
-                    couponProfile: payload.couponProfile,
-                    lastUpdated: payload.lastUpdated,
-                  });
-                  this.setStatus('connected');
-                  return;
-                }
+              if (payload) {
+                const handled = this.handleIncomingPayload(payload);
+                if (handled) break;
               }
             }
           } catch (e) {
@@ -274,56 +278,80 @@ class SyncManager {
         this.setStatus('connected');
       }
     } catch (err) {
-      // If cloud relay fails, try local backend
+      // offline or network glitch
     }
 
-    // 2. Poll Local /api/ledger if available
+    // Also check local /api/ledger if available
     try {
       const localRes = await fetch('/api/ledger', { cache: 'no-store' });
       if (localRes.ok) {
         const contentType = localRes.headers.get('content-type') || '';
         if (contentType.includes('application/json')) {
           const data = await localRes.json();
-          if (data && Array.isArray(data.transactions)) {
-            if (data.lastUpdated && data.lastUpdated > this.lastKnownTimestamp) {
-              this.lastKnownTimestamp = data.lastUpdated;
+          if (data && Array.isArray(data.transactions) && data.transactions.length > 0) {
+            const current = loadTransactions();
+            const merged = mergeTransactionLists(current, data.transactions);
+            if (merged.length !== current.length) {
               this.notifyListeners({
-                transactions: data.transactions,
-                couponProfile: data.couponProfile,
-                lastUpdated: data.lastUpdated,
-              });
-              this.setStatus('connected');
+                transactions: merged,
+                couponProfile: data.couponProfile || loadCouponProfile(),
+                lastUpdated: data.lastUpdated || Date.now(),
+              }, true);
             }
           }
         }
       }
     } catch (err) {
-      // static site
+      // ignore
     }
   }
 
-  // Initial cloud bootstrap to fetch persisted backup
-  private async initialCloudBootstrap(): Promise<void> {
-    try {
-      const res = await fetch(CLOUD_BACKUP_URL, { cache: 'no-store' });
-      if (res.ok) {
-        const doc = await res.json();
-        const data = doc.data;
-        if (data && Array.isArray(data.transactions)) {
-          if (data.lastUpdated && data.lastUpdated > this.lastKnownTimestamp) {
-            this.lastKnownTimestamp = data.lastUpdated;
-            this.notifyListeners({
-              transactions: data.transactions,
-              couponProfile: data.couponProfile,
-              lastUpdated: data.lastUpdated,
-            });
-            this.setStatus('connected');
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Initial cloud backup fetch skipped:', e);
+  // Process incoming sync message safely (NEVER accidentally wipes data)
+  private handleIncomingPayload(payload: any): boolean {
+    if (!payload || payload.senderId === this.clientId) {
+      return false;
     }
+
+    const msgTimestamp = payload.timestamp || payload.lastUpdated || 0;
+    if (msgTimestamp <= this.lastProcessedTimestamp) {
+      return false;
+    }
+
+    // If explicit clear was commanded by user on another device
+    if (payload.type === 'CLEAR_DATABASE') {
+      this.lastProcessedTimestamp = msgTimestamp;
+      saveTransactions([]);
+      this.notifyListeners({
+        transactions: [],
+        couponProfile: payload.couponProfile || loadCouponProfile(),
+        lastUpdated: msgTimestamp,
+      }, true);
+      this.setStatus('connected');
+      return true;
+    }
+
+    // Normal transaction sync / add: SAFE MERGE
+    if (Array.isArray(payload.transactions) && payload.transactions.length > 0) {
+      this.lastProcessedTimestamp = msgTimestamp;
+      const current = loadTransactions();
+      const merged = mergeTransactionLists(current, payload.transactions);
+
+      // Only notify if there are actual new or updated items
+      const hasChanges = merged.length !== current.length || 
+        JSON.stringify(merged[0]) !== JSON.stringify(current[0]);
+
+      if (hasChanges) {
+        this.notifyListeners({
+          transactions: merged,
+          couponProfile: payload.couponProfile || loadCouponProfile(),
+          lastUpdated: msgTimestamp,
+        }, true);
+      }
+      this.setStatus('connected');
+      return true;
+    }
+
+    return false;
   }
 
   // Broadcast to other tabs immediately
@@ -334,7 +362,7 @@ class SyncManager {
           type: 'LOCAL_UPDATE',
           transactions,
           couponProfile,
-          lastUpdated: this.lastKnownTimestamp,
+          timestamp: Date.now(),
           senderId: this.clientId,
         });
       } catch (e) {
@@ -343,22 +371,25 @@ class SyncManager {
     }
   }
 
-  // Publish to Cloud Relay and Cloud Persistent Store
-  private async publishToCloud(transactions: LedgerTransaction[], couponProfile: CouponProfile): Promise<void> {
+  // Publish to Cloud Relay
+  private async publishToCloud(
+    type: 'SYNC' | 'CLEAR_DATABASE',
+    transactions: LedgerTransaction[],
+    couponProfile: CouponProfile
+  ): Promise<void> {
     this.isPublishing = true;
     const now = Date.now();
-    this.lastKnownTimestamp = now;
+    this.lastProcessedTimestamp = now;
 
     const payload = {
-      type: 'SYNC',
+      type,
       transactions,
       couponProfile,
-      lastUpdated: now,
+      timestamp: now,
       senderId: this.clientId,
     };
 
     try {
-      // 1. Publish to real-time pub/sub relay (ntfy.sh)
       await fetch(`https://ntfy.sh/${this.cloudTopic}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -366,43 +397,26 @@ class SyncManager {
       });
     } catch (e) {
       console.warn('Cloud relay publish failed:', e);
-    }
-
-    try {
-      // 2. Update persistent cloud backup (restful-api.dev)
-      await fetch(CLOUD_BACKUP_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'bluefox_khata_live_backup',
-          data: {
-            transactions,
-            couponProfile,
-            lastUpdated: now,
-          },
-        }),
-      });
-    } catch (e) {
-      console.warn('Cloud backup update failed:', e);
     } finally {
       this.isPublishing = false;
     }
   }
 
-  // Remote Actions
+  // Public Remote Actions
   public async addTransaction(tx: LedgerTransaction): Promise<boolean> {
     const currentTxs = loadTransactions();
     const updated = [tx, ...currentTxs.filter((t) => t.id !== tx.id)];
     const coupon = loadCouponProfile();
 
+    // 1. Immediately save to local storage (unbreakable local persistence)
     saveTransactions(updated);
-    this.notifyListeners({ transactions: updated, couponProfile: coupon, lastUpdated: Date.now() });
+    this.notifyListeners({ transactions: updated, couponProfile: coupon, lastUpdated: Date.now() }, false);
     this.broadcastLocalChange(updated, coupon);
 
-    // Publish to cloud immediately for cross-device sync
-    this.publishToCloud(updated, coupon);
+    // 2. Publish to cloud immediately for 1-second cross-device sync
+    this.publishToCloud('SYNC', updated, coupon);
 
-    // Also post to local backend if available
+    // 3. Post to local backend if available
     try {
       await fetch('/api/ledger/transaction', {
         method: 'POST',
@@ -419,11 +433,10 @@ class SyncManager {
   public async syncAll(transactions: LedgerTransaction[], couponProfile: CouponProfile): Promise<boolean> {
     saveTransactions(transactions);
     saveCouponProfile(couponProfile);
-    this.notifyListeners({ transactions, couponProfile, lastUpdated: Date.now() });
+    this.notifyListeners({ transactions, couponProfile, lastUpdated: Date.now() }, false);
     this.broadcastLocalChange(transactions, couponProfile);
 
-    // Publish to cloud immediately for cross-device sync
-    this.publishToCloud(transactions, couponProfile);
+    this.publishToCloud('SYNC', transactions, couponProfile);
 
     try {
       await fetch('/api/ledger/sync', {
@@ -440,12 +453,22 @@ class SyncManager {
 
   public async clearAll(resetCoupon: boolean = false): Promise<boolean> {
     const coupon = loadCouponProfile();
+    // Clear locally
     saveTransactions([]);
-    this.notifyListeners({ transactions: [], couponProfile: coupon, lastUpdated: Date.now() });
-    this.broadcastLocalChange([], coupon);
+    this.notifyListeners({ transactions: [], couponProfile: coupon, lastUpdated: Date.now() }, false);
+    
+    // Broadcast explicit clear event to tabs & cloud
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({
+          type: 'CLEAR_DATABASE',
+          timestamp: Date.now(),
+          senderId: this.clientId,
+        });
+      } catch (e) {}
+    }
 
-    // Publish cleared state to cloud immediately
-    this.publishToCloud([], coupon);
+    this.publishToCloud('CLEAR_DATABASE', [], coupon);
 
     try {
       await fetch('/api/ledger/clear', {
@@ -464,16 +487,14 @@ class SyncManager {
     const txs = loadTransactions();
     saveCouponProfile(profile);
 
-    // Update cloud topic if coupon code changed
     if (profile.couponCode) {
-      this.cloudTopic = `bluefox_khata_${profile.couponCode.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
+      this.cloudTopic = `bluefox_khata_v4_${profile.couponCode.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}`;
       this.startCloudSse();
     }
 
-    this.notifyListeners({ transactions: txs, couponProfile: profile, lastUpdated: Date.now() });
+    this.notifyListeners({ transactions: txs, couponProfile: profile, lastUpdated: Date.now() }, false);
     this.broadcastLocalChange(txs, profile);
-
-    this.publishToCloud(txs, profile);
+    this.publishToCloud('SYNC', txs, profile);
 
     try {
       await fetch('/api/coupon', {

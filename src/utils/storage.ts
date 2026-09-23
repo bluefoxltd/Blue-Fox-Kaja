@@ -67,22 +67,6 @@ export function generateSeedTransactions(): LedgerTransaction[] {
 
 export function loadTransactions(): LedgerTransaction[] {
   try {
-    // Clean up any legacy v1 seed data
-    if (typeof window !== 'undefined') {
-      if (localStorage.getItem('bluefox_khaja_khata_ledger_v1')) {
-        localStorage.removeItem('bluefox_khaja_khata_ledger_v1');
-      }
-
-      // Check if user has initialized clean database
-      const clearedMarker = localStorage.getItem(DB_CLEARED_VERSION_KEY);
-      if (!clearedMarker) {
-        // Initializing clean database as requested by user
-        localStorage.setItem(DB_CLEARED_VERSION_KEY, 'true');
-        localStorage.setItem(STORAGE_KEY_LEDGER, JSON.stringify([]));
-        return [];
-      }
-    }
-
     const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_LEDGER) : null;
     if (!raw) {
       return [];
