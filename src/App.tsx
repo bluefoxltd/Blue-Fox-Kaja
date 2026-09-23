@@ -24,7 +24,8 @@ import {
   TransactionType,
   SyncStatus
 } from './types';
-import { syncManager } from './utils/syncManager';
+import { syncManager, mergeTransactionLists } from './utils/syncManager';
+import { decodeTransactionsFromQr } from './utils/qrPayload';
 import { Navbar } from './components/Navbar';
 import { SummaryCards } from './components/SummaryCards';
 import { NepaliDateFilterBar } from './components/NepaliDateFilterBar';
@@ -93,13 +94,33 @@ export default function App() {
     searchQuery: '',
   });
 
-  // Detect URL parameter for shopkeeper QR scan
+  // Detect URL parameter for shopkeeper QR scan & embedded ledger data
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('view') === 'shopkeeper') {
         setActiveView('shopkeeper');
       }
+
+      // If shopkeeper scanned QR code containing embedded ledger data (?d=...)
+      const embeddedData = params.get('d');
+      if (embeddedData) {
+        const decodedTxs = decodeTransactionsFromQr(embeddedData);
+        if (decodedTxs.length > 0) {
+          setTransactions((prev) => {
+            const merged = mergeTransactionLists(prev, decodedTxs);
+            saveTransactions(merged);
+            return merged;
+          });
+        }
+      }
+    }
+  }, []);
+
+  // Ensure current ledger data is pushed to cloud cache on mount so scanning phone receives it
+  useEffect(() => {
+    if (transactions.length > 0) {
+      syncManager.syncAll(transactions, couponProfile);
     }
   }, []);
 
@@ -487,6 +508,7 @@ export default function App() {
         isOpen={couponModalOpen}
         onClose={() => setCouponModalOpen(false)}
         couponProfile={couponProfile}
+        transactions={transactions}
         onOpenShopkeeperView={() => setActiveView('shopkeeper')}
         onOpenEditModal={() => setEditCouponModalOpen(true)}
       />

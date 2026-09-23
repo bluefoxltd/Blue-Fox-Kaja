@@ -14,7 +14,7 @@ import { loadTransactions, saveTransactions, loadCouponProfile, saveCouponProfil
 type SyncListener = (data: { transactions: LedgerTransaction[]; couponProfile: CouponProfile; lastUpdated: number }) => void;
 type StatusListener = (status: SyncStatus) => void;
 
-function mergeTransactionLists(localTxs: LedgerTransaction[], incomingTxs: LedgerTransaction[]): LedgerTransaction[] {
+export function mergeTransactionLists(localTxs: LedgerTransaction[], incomingTxs: LedgerTransaction[]): LedgerTransaction[] {
   const map = new Map<string, LedgerTransaction>();
   
   // 1. Add all local transactions
@@ -168,7 +168,7 @@ class SyncManager {
     }
 
     try {
-      const sseUrl = `https://ntfy.sh/${this.cloudTopic}/sse`;
+      const sseUrl = `https://ntfy.sh/${this.cloudTopic}/sse?since=all`;
       this.cloudEventSource = new EventSource(sseUrl);
 
       this.cloudEventSource.onopen = () => {
@@ -254,7 +254,7 @@ class SyncManager {
 
     try {
       // Poll Cloud Real-Time Relay
-      const cloudRes = await fetch(`https://ntfy.sh/${this.cloudTopic}/json?poll=1`, {
+      const cloudRes = await fetch(`https://ntfy.sh/${this.cloudTopic}/json?poll=1&since=all`, {
         cache: 'no-store',
       });
 
@@ -392,7 +392,12 @@ class SyncManager {
     try {
       await fetch(`https://ntfy.sh/${this.cloudTopic}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache': 'yes',
+          'X-Cache': 'yes',
+          'X-Expires': '1d',
+        },
         body: JSON.stringify(payload),
       });
     } catch (e) {

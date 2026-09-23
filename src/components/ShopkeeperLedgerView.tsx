@@ -29,6 +29,7 @@ import { calculateLedgerSummary, exportLedgerToCsv, exportLedgerToJson } from '.
 import { NepaliDateFilterBar } from './NepaliDateFilterBar';
 import { LedgerTable } from './LedgerTable';
 import { formatNepaliRupees, formatBsDateString, getCurrentBsDate } from '../utils/nepaliDate';
+import { syncManager } from '../utils/syncManager';
 
 interface ShopkeeperLedgerViewProps {
   couponProfile: CouponProfile;
@@ -205,6 +206,17 @@ export const ShopkeeperLedgerView: React.FC<ShopkeeperLedgerViewProps> = ({
             >
               <Printer className="w-4 h-4 text-blue-300" />
               <span>Print Bill</span>
+            </button>
+
+            {/* Force Sync from Cloud */}
+            <button
+              onClick={() => syncManager.fetchLatest()}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-600 flex items-center gap-1.5 transition-colors"
+              title="Force sync latest ledger data from cloud"
+              id="shopkeeper-force-sync-btn"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-300" />
+              <span>Sync Now</span>
             </button>
 
             {/* Final Project Code ZIP Download */}

@@ -16,12 +16,14 @@ import {
   IdCard,
   MapPin
 } from 'lucide-react';
-import { CouponProfile } from '../types';
+import { CouponProfile, LedgerTransaction } from '../types';
+import { buildShopkeeperQrUrl } from '../utils/qrPayload';
 
 interface CouponCardModalProps {
   isOpen: boolean;
   onClose: () => void;
   couponProfile: CouponProfile;
+  transactions?: LedgerTransaction[];
   onOpenShopkeeperView: () => void;
   onOpenEditModal: () => void;
 }
@@ -30,6 +32,7 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
   isOpen,
   onClose,
   couponProfile,
+  transactions = [],
   onOpenShopkeeperView,
   onOpenEditModal,
 }) => {
@@ -37,10 +40,13 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [isGeneratingPass, setIsGeneratingPass] = useState<boolean>(false);
 
-  // Compute the live QR URL for the shopkeeper
-  const shopkeeperUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/?view=shopkeeper&coupon=${couponProfile.couponCode}`
-    : `https://bluefox.khata.np/?view=shopkeeper&coupon=${couponProfile.couponCode}`;
+  // Compute total due for live badge
+  const totalDue = transactions
+    .filter((t) => t.paymentStatus === 'CREDIT')
+    .reduce((sum, t) => sum + (t.netAmount || 0), 0);
+
+  // Compute the live QR URL for the shopkeeper with embedded ledger data
+  const shopkeeperUrl = buildShopkeeperQrUrl(couponProfile.couponCode, transactions);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -53,7 +59,7 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
         dark: '#0f172a', // Navy blue
         light: '#ffffff',
       },
-      errorCorrectionLevel: 'H',
+      errorCorrectionLevel: 'M',
     })
       .then((url) => {
         setQrDataUrl(url);
@@ -61,7 +67,7 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
       .catch((err) => {
         console.error('Error generating QR code:', err);
       });
-  }, [isOpen, shopkeeperUrl, couponProfile.couponCode]);
+  }, [isOpen, shopkeeperUrl, couponProfile.couponCode, transactions]);
 
   if (!isOpen) return null;
 
@@ -326,6 +332,15 @@ export const CouponCardModal: React.FC<CouponCardModalProps> = ({
             <p className="text-[11px] text-slate-500">
               Shopkeeper scans this pass to view live credit ledger & statements
             </p>
+
+            {/* Live Data Synchronized into QR indicator */}
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-bold border border-emerald-300 shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>{transactions.length} Records (Rs. {totalDue.toLocaleString()}) Synced in QR Link</span>
+            </div>
 
             {/* Coupon Holder & Account Details */}
             <div className="mt-4 pt-3 border-t border-slate-200/80 text-left space-y-1.5 text-xs">

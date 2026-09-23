@@ -60,16 +60,64 @@ export function checkAdminPin(enteredPin: string): boolean {
   return enteredPin.trim() === currentPin;
 }
 
-// Clean, empty database initialization (zero dummy/seed transactions)
+// Default active ledger transactions (BF-TX-3428 & BF-TX-8131)
 export function generateSeedTransactions(): LedgerTransaction[] {
-  return [];
+  return [
+    {
+      id: 'tx_3428',
+      transactionNumber: 'BF-TX-3428',
+      timestamp: 1774258800000,
+      dateAD: '2026-09-21',
+      dateBS: '2083-06-04',
+      dateBSFormatted: '2083 Ashoj 04',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_1', name: 'tea', qty: 2, unitPrice: 20, totalPrice: 40 },
+        { id: 'item_2', name: 'chicken Jhol momo', qty: 2, unitPrice: 150, totalPrice: 300 },
+      ],
+      subtotal: 340,
+      discount: 0,
+      netAmount: 340,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-21T07:00:00.000Z',
+    },
+    {
+      id: 'tx_8131',
+      transactionNumber: 'BF-TX-8131',
+      timestamp: 1774258800000,
+      dateAD: '2026-09-21',
+      dateBS: '2083-06-04',
+      dateBSFormatted: '2083 Ashoj 04',
+      type: 'PURCHASE',
+      mealCategory: 'SNACK_KHAJA',
+      shopName: 'Darjeeling momo',
+      couponCode: 'BF-FOX-7821',
+      items: [
+        { id: 'item_3', name: 'ice', qty: 5, unitPrice: 20, totalPrice: 100 },
+      ],
+      subtotal: 100,
+      discount: 0,
+      netAmount: 100,
+      paymentStatus: 'CREDIT',
+      paymentMethod: 'COUPON_CREDIT',
+      isImmutable: true,
+      createdAt: '2026-09-21T07:15:00.000Z',
+    },
+  ];
 }
 
 export function loadTransactions(): LedgerTransaction[] {
   try {
     const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_LEDGER) : null;
-    if (!raw) {
-      return [];
+    if (raw === null) {
+      const initial = generateSeedTransactions();
+      saveTransactions(initial);
+      return initial;
     }
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
