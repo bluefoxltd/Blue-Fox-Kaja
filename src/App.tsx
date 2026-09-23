@@ -38,6 +38,7 @@ import { AdminPinLogin } from './components/AdminPinLogin';
 import { AdminPinModal } from './components/AdminPinModal';
 import { DashboardAnalytics } from './components/DashboardAnalytics';
 import { KhataVoiceAssistant } from './components/KhataVoiceAssistant';
+import { BlueFoxMascot } from './components/BlueFoxMascot';
 import { 
   ShieldCheck, 
   QrCode, 
@@ -521,6 +522,9 @@ export default function App() {
         transactions={transactions}
         userRole={activeView === 'dashboard' ? 'admin' : 'shopkeeper'}
       />
+
+      {/* Floating 3D Animated Blue Fox Mascot on Left Side (Expression changes every 5 seconds) */}
+      <BlueFoxMascot />
 
     </div>
   );

@@ -11,6 +11,13 @@ const DB_CLEARED_VERSION_KEY = 'bluefox_db_cleared_confirmed_v2';
 
 export const DEFAULT_ADMIN_PIN = '1234';
 
+export function getLiveShopkeeperQrUrl(couponCode: string = 'BF-FOX-7821'): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/?view=shopkeeper&coupon=${encodeURIComponent(couponCode)}`;
+  }
+  return `/?view=shopkeeper&coupon=${encodeURIComponent(couponCode)}`;
+}
+
 export const DEFAULT_COUPON: CouponProfile = {
   couponCode: 'BF-FOX-7821',
   holderName: 'Blue Fox',
@@ -21,7 +28,7 @@ export const DEFAULT_COUPON: CouponProfile = {
   issueDateBS: '2083-01-01',
   validUntilBS: '2083-12-30',
   creditLimit: 25000,
-  fixedQrPayload: 'https://ais-pre-ptlaj6yq7utfzpaev2jmqd-670520544893.asia-southeast1.run.app/?view=shopkeeper&coupon=BF-FOX-7821',
+  fixedQrPayload: getLiveShopkeeperQrUrl('BF-FOX-7821'),
 };
 
 export function getStoredAdminPin(): string {
@@ -159,6 +166,7 @@ export function loadCouponProfile(): CouponProfile {
     parsed.shopName = 'Darjeeling momo';
     parsed.shopAddress = 'Itahari-6, Sky Plaza';
     parsed.shopPhone = '9802755605';
+    parsed.fixedQrPayload = `${origin}/?view=shopkeeper&coupon=${encodeURIComponent(parsed.couponCode || DEFAULT_COUPON.couponCode)}`;
     if (!parsed.holderName || parsed.holderName === 'Bipin Chhetri') {
       parsed.holderName = 'Blue Fox';
       parsed.holderPhone = '+977 9802755605';
